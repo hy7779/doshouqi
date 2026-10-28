@@ -1748,9 +1748,106 @@
 
   /* ---------- 文字聊天 ---------- */
   .chat-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
   }
+
+  .chat-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: none;
+    place-items: center;
+    appearance: none;
+    border: 1px solid rgba(226, 192, 128, 0.24);
+    border-radius: 50%;
+    color: #cfbd99;
+    background: rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    font-size: 1.15rem;
+    line-height: 1;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  .chat-close:hover {
+    color: #f5e3ba;
+    border-color: rgba(239, 207, 147, 0.62);
+    background: rgba(201, 159, 87, 0.16);
+  }
+
+  .chat-close:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
+  }
+
+  .mobile-chat-btn {
+    position: relative;
+    display: none;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mobile-chat-btn.has-unread {
+    animation: mobile-chat-pulse 900ms ease-in-out 2;
+  }
+
+  .chat-dot {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e25d52;
+    box-shadow:
+      0 0 0 2px #151f1d,
+      0 0 8px rgba(226, 93, 82, 0.72);
+  }
+
+  .chat-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 85;
+    display: none;
+    background: rgba(4, 8, 7, 0.66);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+
+  @keyframes mobile-chat-pulse {
+    0%, 100% {
+      border-color: rgba(217, 179, 108, 0.38);
+      box-shadow: 0 0 0 0 rgba(216, 179, 108, 0);
+    }
+    50% {
+      border-color: rgba(241, 215, 159, 0.86);
+      box-shadow:
+        0 0 0 3px rgba(216, 179, 108, 0.16),
+        0 0 18px rgba(216, 179, 108, 0.3);
+    }
+  }
+
+  @keyframes chat-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes chat-sheet-up {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 28px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+
 
   .chat-hint {
     margin: -4px 0 9px;
@@ -1927,9 +2024,59 @@
   }
 
   @media (max-width: 920px) {
-    .room-panel,
-    .chat-panel {
+    .room-panel {
       grid-column: 1 / -1;
+    }
+
+    .mobile-chat-btn {
+      display: inline-flex;
+    }
+
+    .chat-backdrop.is-open {
+      display: block;
+      animation: chat-backdrop-in 180ms ease both;
+    }
+
+    .side-panel .chat-panel {
+      position: fixed;
+      left: 50%;
+      right: auto;
+      bottom: 0;
+      z-index: 86;
+      width: min(100%, 560px);
+      max-height: 82vh;
+      max-height: 82svh;
+      margin: 0;
+      padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+      display: none;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border: 1px solid rgba(226, 192, 128, 0.26);
+      border-bottom: 0;
+      border-radius: 18px 18px 0 0;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(201, 161, 92, 0.12), transparent 50%),
+        linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
+        #151f1d;
+      box-shadow: 0 -22px 60px rgba(0, 0, 0, 0.55);
+      transform: translateX(-50%);
+    }
+
+    .side-panel .chat-panel.is-open {
+      display: flex;
+      animation: chat-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .side-panel .chat-panel .panel-title {
+      padding-right: 36px;
+    }
+
+    .chat-close {
+      display: grid;
+    }
+
+    body.chat-sheet-open {
+      overflow: hidden;
     }
   }
 
@@ -1944,6 +2091,17 @@
     .ghost-button {
       padding: 7px 10px;
       font-size: 0.7rem;
+    }
+
+    .site-header {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+
+    .header-actions {
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .lobby-card {
@@ -1974,6 +2132,7 @@
     </div>
     <div class="header-actions">
       <span class="conn-badge" id="connBadge" data-state="idle">未连接</span>
+      <button class="ghost-button mobile-chat-btn" id="mobileChatBtn" type="button" aria-controls="chatPanel" aria-expanded="false" aria-label="打开聊天">💬 聊天<span class="chat-dot" id="mobileChatDot" aria-hidden="true" hidden></span></button>
       <button class="ghost-button" id="resetButton" type="button">重新开局</button>
     </div>
   </header>
@@ -2005,6 +2164,27 @@
     </section>
 
     <aside class="side-panel">
+      <section class="panel chat-panel" id="chatPanel" aria-label="文字聊天">
+        <button class="chat-close" id="chatCloseBtn" type="button" aria-label="关闭聊天">×</button>
+        <p class="panel-kicker">CHAT</p>
+        <h2 class="panel-title">文字聊天</h2>
+        <p class="chat-hint" id="chatHint">请先联机</p>
+        <div class="chat-log" id="chatLog" role="log" aria-live="polite" aria-label="聊天记录"></div>
+        <div class="emoji-row" id="emojiRow" aria-label="快捷表情">
+          <button class="emoji-button" id="emojiSmile" type="button" data-emoji="😀" aria-label="发送 😀" disabled>😀</button>
+          <button class="emoji-button" id="emojiLaugh" type="button" data-emoji="😂" aria-label="发送 😂" disabled>😂</button>
+          <button class="emoji-button" id="emojiThink" type="button" data-emoji="🤔" aria-label="发送 🤔" disabled>🤔</button>
+          <button class="emoji-button" id="emojiThumb" type="button" data-emoji="👍" aria-label="发送 👍" disabled>👍</button>
+          <button class="emoji-button" id="emojiAngry" type="button" data-emoji="😡" aria-label="发送 😡" disabled>😡</button>
+          <button class="emoji-button" id="emojiFish" type="button" data-emoji="🐟" aria-label="发送 🐟" disabled>🐟</button>
+          <button class="emoji-button" id="emojiCrown" type="button" data-emoji="👑" aria-label="发送 👑" disabled>👑</button>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text" maxlength="200" autocomplete="off" placeholder="请先联机" aria-label="聊天内容" disabled>
+          <button class="chat-send" id="chatSend" type="button" disabled>发送</button>
+        </div>
+      </section>
+
       <section class="panel room-panel">
         <p class="panel-kicker">ROOM</p>
         <h2 class="panel-title">联机对局</h2>
@@ -2078,31 +2258,13 @@
           <li>鼠吃象，象吃不了鼠。进入对方兽穴立即获胜。房主（红方）校验走子并同步棋盘。</li>
         </ul>
       </section>
-
-      <section class="panel chat-panel">
-        <p class="panel-kicker">CHAT</p>
-        <h2 class="panel-title">文字聊天</h2>
-        <p class="chat-hint" id="chatHint">请先联机</p>
-        <div class="chat-log" id="chatLog" role="log" aria-live="polite" aria-label="聊天记录"></div>
-        <div class="emoji-row" id="emojiRow" aria-label="快捷表情">
-          <button class="emoji-button" id="emojiSmile" type="button" data-emoji="😀" aria-label="发送 😀" disabled>😀</button>
-          <button class="emoji-button" id="emojiLaugh" type="button" data-emoji="😂" aria-label="发送 😂" disabled>😂</button>
-          <button class="emoji-button" id="emojiThink" type="button" data-emoji="🤔" aria-label="发送 🤔" disabled>🤔</button>
-          <button class="emoji-button" id="emojiThumb" type="button" data-emoji="👍" aria-label="发送 👍" disabled>👍</button>
-          <button class="emoji-button" id="emojiAngry" type="button" data-emoji="😡" aria-label="发送 😡" disabled>😡</button>
-          <button class="emoji-button" id="emojiFish" type="button" data-emoji="🐟" aria-label="发送 🐟" disabled>🐟</button>
-          <button class="emoji-button" id="emojiCrown" type="button" data-emoji="👑" aria-label="发送 👑" disabled>👑</button>
-        </div>
-        <div class="chat-input-row">
-          <input class="chat-input" id="chatInput" type="text" maxlength="200" autocomplete="off" placeholder="请先联机" aria-label="聊天内容" disabled>
-          <button class="chat-send" id="chatSend" type="button" disabled>发送</button>
-        </div>
-      </section>
     </aside>
   </main>
 
   <p class="footer-note">房主（红方）判定走子 · 数据经 PeerJS 点对点传输 · 无后端</p>
 </div>
+
+<div class="chat-backdrop" id="chatBackdrop" aria-hidden="true" hidden></div>
 
 <div class="lobby-screen" id="lobbyScreen" role="dialog" aria-modal="true" aria-labelledby="lobbyTitle">
   <div class="lobby-card">
@@ -2378,6 +2540,11 @@
   const chatInputEl = $('chatInput');
   const chatSendButtonEl = $('chatSend');
   const emojiRowEl = $('emojiRow');
+  const chatPanelEl = $('chatPanel');
+  const chatBackdropEl = $('chatBackdrop');
+  const chatCloseButtonEl = $('chatCloseBtn');
+  const mobileChatBtnEl = $('mobileChatBtn');
+  const mobileChatDotEl = $('mobileChatDot');
   const emojiButtons = [
     $('emojiSmile'), $('emojiLaugh'), $('emojiThink'), $('emojiThumb'),
     $('emojiAngry'), $('emojiFish'), $('emojiCrown'),
@@ -2412,6 +2579,8 @@
   let joinTimer = null;
   let pendingTimer = null;
   let toastTimer = null;
+  let chatSheetOpen = false;
+  let chatUnread = false;
 
   const keyOf = (x, y) => x + ',' + y;
   const isMyTurn = () => !!(connected && game && game.status === 'playing' &&
@@ -2444,6 +2613,7 @@
   /* ================= 联机大厅 ================= */
 
   function showLobbyChoices(hint, error) {
+    closeChatSheet(false);
     lobbyScreenEl.hidden = false;
     lobbyChoicesEl.hidden = false;
     lobbyWaitingEl.hidden = true;
@@ -2455,6 +2625,7 @@
   }
 
   function showLobbyWaiting(code, status, title) {
+    closeChatSheet(false);
     lobbyScreenEl.hidden = false;
     lobbyChoicesEl.hidden = true;
     lobbyWaitingEl.hidden = false;
@@ -2532,6 +2703,8 @@
     }
 
     chatLogEl.scrollTop = chatLogEl.scrollHeight;
+
+    if (!mine) notifyChatUnread();
   }
 
   function sendChat(override) {
@@ -2558,6 +2731,65 @@
 
     chatInputEl.value = '';
     chatInputEl.focus();
+  }
+
+  /* ================= 手机端聊天悬浮窗 ================= */
+
+  function isMobileLayout() {
+    return window.innerWidth <= 920;
+  }
+
+  function clearChatUnread() {
+    chatUnread = false;
+    mobileChatDotEl.hidden = true;
+    mobileChatBtnEl.classList.remove('has-unread');
+    mobileChatBtnEl.setAttribute('aria-label', '打开聊天');
+  }
+
+  function notifyChatUnread() {
+    if (!isMobileLayout() || chatSheetOpen || chatUnread) return;
+    chatUnread = true;
+    mobileChatDotEl.hidden = false;
+    mobileChatBtnEl.classList.add('has-unread');
+    mobileChatBtnEl.setAttribute('aria-label', '聊天，有新消息');
+  }
+
+  function openChatSheet() {
+    if (!isMobileLayout()) return;
+
+    chatSheetOpen = true;
+    chatBackdropEl.hidden = false;
+    chatBackdropEl.classList.add('is-open');
+    chatPanelEl.classList.add('is-open');
+    mobileChatBtnEl.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('chat-sheet-open');
+    clearChatUnread();
+
+    window.setTimeout(() => {
+      if (chatSheetOpen) chatLogEl.scrollTop = chatLogEl.scrollHeight;
+    }, 0);
+  }
+
+  function closeChatSheet(restoreFocus) {
+    const wasOpen = chatSheetOpen;
+    chatSheetOpen = false;
+    chatPanelEl.classList.remove('is-open');
+    chatBackdropEl.classList.remove('is-open');
+    chatBackdropEl.hidden = true;
+    mobileChatBtnEl.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('chat-sheet-open');
+    clearChatUnread();
+
+    if (restoreFocus && wasOpen && isMobileLayout()) {
+      mobileChatBtnEl.focus();
+    }
+  }
+
+  function handleViewportChange() {
+    if (!isMobileLayout()) {
+      closeChatSheet(false);
+      clearChatUnread();
+    }
   }
 
   /* ================= 规则状态的渲染 ================= */
@@ -3707,6 +3939,30 @@
     if (!button || !emojiRowEl.contains(button) || button.disabled) return;
     sendChat(button.dataset.emoji);
   });
+
+  mobileChatBtnEl.addEventListener('click', () => {
+    if (chatSheetOpen) {
+      closeChatSheet(true);
+    } else {
+      openChatSheet();
+    }
+  });
+
+  chatCloseButtonEl.addEventListener('click', () => {
+    closeChatSheet(true);
+  });
+
+  chatBackdropEl.addEventListener('click', () => {
+    closeChatSheet(true);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && chatSheetOpen) {
+      closeChatSheet(true);
+    }
+  });
+
+  window.addEventListener('resize', handleViewportChange);
 
   window.addEventListener('pagehide', destroyNet);
 
