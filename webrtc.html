@@ -1746,8 +1746,189 @@
     transform: none;
   }
 
+  /* ---------- 文字聊天 ---------- */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-hint {
+    margin: -4px 0 9px;
+    color: #8e816b;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    letter-spacing: 0.03em;
+  }
+
+  .chat-hint.is-online {
+    color: #9ed2b0;
+  }
+
+  .chat-log {
+    height: 150px;
+    min-height: 150px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 9px 10px;
+    border: 1px solid rgba(226, 192, 128, 0.14);
+    border-radius: 10px;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(201, 161, 92, 0.05), transparent 45%),
+      rgba(0, 0, 0, 0.22);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201, 161, 92, 0.32) transparent;
+  }
+
+  .chat-log::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .chat-log::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(201, 161, 92, 0.32);
+  }
+
+  .chat-bubble {
+    max-width: 84%;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-size: 0.76rem;
+    line-height: 1.55;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .chat-bubble.mine {
+    align-self: flex-end;
+    color: #f5ddd7;
+    border-color: rgba(167, 53, 58, 0.44);
+    border-bottom-right-radius: 3px;
+    background:
+      linear-gradient(145deg, rgba(167, 53, 58, 0.5), rgba(120, 35, 39, 0.3));
+    box-shadow: 0 4px 12px rgba(66, 14, 16, 0.16);
+  }
+
+  .chat-bubble.theirs {
+    align-self: flex-start;
+    color: #dbe9fb;
+    border-color: rgba(49, 101, 163, 0.44);
+    border-bottom-left-radius: 3px;
+    background:
+      linear-gradient(145deg, rgba(49, 101, 163, 0.5), rgba(30, 65, 110, 0.3));
+    box-shadow: 0 4px 12px rgba(15, 36, 66, 0.16);
+  }
+
+  .emoji-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 9px 0 8px;
+  }
+
+  .emoji-button {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    appearance: none;
+    border: 1px solid rgba(226, 192, 128, 0.18);
+    border-radius: 8px;
+    color: #f0dfbb;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .emoji-button:hover:not(:disabled) {
+    border-color: rgba(239, 207, 147, 0.52);
+    background: rgba(201, 159, 87, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .emoji-button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .emoji-button:disabled {
+    opacity: 0.34;
+    cursor: not-allowed;
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 7px;
+  }
+
+  .chat-input {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 8px 11px;
+    border: 1px solid rgba(226, 192, 128, 0.2);
+    border-radius: 9px;
+    color: #f0e2c7;
+    background: rgba(0, 0, 0, 0.28);
+    font-family: inherit;
+    font-size: 0.78rem;
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  }
+
+  .chat-input:focus {
+    border-color: rgba(241, 215, 159, 0.55);
+    box-shadow: 0 0 0 2px rgba(241, 215, 159, 0.1);
+  }
+
+  .chat-input::placeholder {
+    color: #7d735f;
+  }
+
+  .chat-input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .chat-send {
+    flex: 0 0 auto;
+    appearance: none;
+    padding: 0 14px;
+    border: 1px solid rgba(223, 185, 113, 0.46);
+    border-radius: 9px;
+    color: #f2dfb5;
+    background: rgba(201, 159, 87, 0.14);
+    cursor: pointer;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  }
+
+  .chat-send:hover:not(:disabled) {
+    border-color: rgba(239, 207, 147, 0.78);
+    background: rgba(201, 159, 87, 0.26);
+  }
+
+  .chat-send:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
+  .chat-input:focus-visible,
+  .chat-send:focus-visible,
+  .emoji-button:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
+  }
+
   @media (max-width: 920px) {
-    .room-panel {
+    .room-panel,
+    .chat-panel {
       grid-column: 1 / -1;
     }
   }
@@ -1896,6 +2077,26 @@
           <li>踩进对方陷阱的棋子等级归 0，任何棋子都能吃它；但它向外吃子时仍按原等级计算。</li>
           <li>鼠吃象，象吃不了鼠。进入对方兽穴立即获胜。房主（红方）校验走子并同步棋盘。</li>
         </ul>
+      </section>
+
+      <section class="panel chat-panel">
+        <p class="panel-kicker">CHAT</p>
+        <h2 class="panel-title">文字聊天</h2>
+        <p class="chat-hint" id="chatHint">请先联机</p>
+        <div class="chat-log" id="chatLog" role="log" aria-live="polite" aria-label="聊天记录"></div>
+        <div class="emoji-row" id="emojiRow" aria-label="快捷表情">
+          <button class="emoji-button" id="emojiSmile" type="button" data-emoji="😀" aria-label="发送 😀" disabled>😀</button>
+          <button class="emoji-button" id="emojiLaugh" type="button" data-emoji="😂" aria-label="发送 😂" disabled>😂</button>
+          <button class="emoji-button" id="emojiThink" type="button" data-emoji="🤔" aria-label="发送 🤔" disabled>🤔</button>
+          <button class="emoji-button" id="emojiThumb" type="button" data-emoji="👍" aria-label="发送 👍" disabled>👍</button>
+          <button class="emoji-button" id="emojiAngry" type="button" data-emoji="😡" aria-label="发送 😡" disabled>😡</button>
+          <button class="emoji-button" id="emojiFish" type="button" data-emoji="🐟" aria-label="发送 🐟" disabled>🐟</button>
+          <button class="emoji-button" id="emojiCrown" type="button" data-emoji="👑" aria-label="发送 👑" disabled>👑</button>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text" maxlength="200" autocomplete="off" placeholder="请先联机" aria-label="聊天内容" disabled>
+          <button class="chat-send" id="chatSend" type="button" disabled>发送</button>
+        </div>
       </section>
     </aside>
   </main>
@@ -2172,6 +2373,16 @@
   const blueCountEl = $('blueCount');
   const selectionCardEl = $('selectionCard');
 
+  const chatLogEl = $('chatLog');
+  const chatHintEl = $('chatHint');
+  const chatInputEl = $('chatInput');
+  const chatSendButtonEl = $('chatSend');
+  const emojiRowEl = $('emojiRow');
+  const emojiButtons = [
+    $('emojiSmile'), $('emojiLaugh'), $('emojiThink'), $('emojiThumb'),
+    $('emojiAngry'), $('emojiFish'), $('emojiCrown'),
+  ];
+
   const lobbyScreenEl = $('lobbyScreen');
   const lobbyChoicesEl = $('lobbyChoices');
   const createRoomButtonEl = $('createRoomButton');
@@ -2280,6 +2491,73 @@
     sideStatusEl.textContent = status;
     sideStatusEl.classList.toggle('is-online', connected);
     sideStatusEl.classList.toggle('is-waiting', !connected && status !== '已断开');
+  }
+
+  /* ================= 文字聊天 ================= */
+
+  function chatAvailable() {
+    return !!(connected && conn && conn.open);
+  }
+
+  function updateChatState() {
+    const available = chatAvailable();
+
+    chatInputEl.disabled = !available;
+    chatSendButtonEl.disabled = !available;
+    for (const button of emojiButtons) {
+      button.disabled = !available;
+    }
+
+    chatHintEl.textContent = available ? '已连接 · 消息点对点发送' : '请先联机';
+    chatHintEl.classList.toggle('is-online', available);
+    chatInputEl.placeholder = available ? '说点什么…' : '请先联机';
+  }
+
+  function clearChat() {
+    chatLogEl.replaceChildren();
+  }
+
+  function appendChat(text, mine) {
+    const body = String(text ?? '').trim().slice(0, 200);
+    if (!body) return;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ' + (mine ? 'mine' : 'theirs');
+    bubble.textContent = body;
+    bubble.setAttribute('aria-label', (mine ? '你说：' : '对方说：') + body);
+    chatLogEl.appendChild(bubble);
+
+    while (chatLogEl.children.length > 200) {
+      chatLogEl.children[0].remove();
+    }
+
+    chatLogEl.scrollTop = chatLogEl.scrollHeight;
+  }
+
+  function sendChat(override) {
+    if (!chatAvailable()) {
+      showToast('请先联机');
+      return;
+    }
+
+    const text = String(override ?? chatInputEl.value).trim().slice(0, 200);
+    if (!text) {
+      chatInputEl.focus();
+      return;
+    }
+
+    appendChat(text, true);
+
+    if (conn && conn.open) {
+      try {
+        conn.send({ type: 'chat', text });
+      } catch {
+        showToast('消息发送失败');
+      }
+    }
+
+    chatInputEl.value = '';
+    chatInputEl.focus();
   }
 
   /* ================= 规则状态的渲染 ================= */
@@ -2544,6 +2822,7 @@
     updateSidePanel();
     updateResult();
     updateRoomUI();
+    updateChatState();
   }
 
   /* ================= 状态同步 ================= */
@@ -2716,6 +2995,13 @@
       }
     }
     if (!msg || typeof msg !== 'object') return;
+
+    if (msg.type === 'chat') {
+      if (typeof msg.text === 'string') {
+        appendChat(msg.text, false);
+      }
+      return;
+    }
 
     if (asHost) {
       switch (msg.type) {
@@ -3054,6 +3340,7 @@
     }
 
     clearSelection();
+    clearChat();
     game = initialState();
     role = 'red';
     isHost = true;
@@ -3084,6 +3371,7 @@
     }
 
     clearSelection();
+    clearChat();
     game = initialState();
     role = 'blue';
     isHost = false;
@@ -3402,6 +3690,23 @@
 
   resetButtonEl.addEventListener('click', resetGame);
   playAgainButtonEl.addEventListener('click', resetGame);
+
+  chatSendButtonEl.addEventListener('click', () => {
+    sendChat();
+  });
+
+  chatInputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.isComposing) {
+      event.preventDefault();
+      sendChat();
+    }
+  });
+
+  emojiRowEl.addEventListener('click', event => {
+    const button = event.target.closest('.emoji-button');
+    if (!button || !emojiRowEl.contains(button) || button.disabled) return;
+    sendChat(button.dataset.emoji);
+  });
 
   window.addEventListener('pagehide', destroyNet);
 
