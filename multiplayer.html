@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斗兽棋 · 跨网联机</title>
+<style>
+  :root {
+    --ink: #211910;
+    --paper: #f0e2c7;
+    --red: #a82027;
+    --blue: #1b5396;
+    --gold: #c9a15c;
+    --river: #2f748d;
+    --trap: #e7bd63;
+    --text: #eee2ca;
+    --muted: #b6a88e;
+    --line: rgba(226, 192, 128, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+
+  html, body { min-height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--text);
+    font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(190, 144, 72, 0.16), transparent 38%),
+      radial-gradient(circle at 88% 100%, rgba(47, 116, 141, 0.18), transparent 42%),
+      linear-gradient(155deg, #17211f 0%, #101716 52%, #0d1413 100%);
+  }
+
+  button, input { font: inherit; }
+
+  .page {
+    width: min(1080px, 94vw);
+    margin: 0 auto;
+    padding: 20px 0 28px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+
+  .seal {
+    width: 52px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(230, 193, 122, 0.65);
+    border-radius: 10px;
+    color: #f1d59d;
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: 1.8rem;
+    background: #2a241c;
+    transform: rotate(-3deg);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), inset 0 0 0 3px rgba(0, 0, 0, 0.18);
+  }
+
+  h1 {
+    margin: 0;
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: clamp(1.5rem, 3vw, 2.1rem);
+    letter-spacing: 0.1em;
+    color: #f2e2bc;
+  }
+
+  .sub {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+  }
+
+  .room-badge {
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: #cfbd99;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .room-badge b { color: #f1d59d; letter-spacing: 0.05em; }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 560px) minmax(260px, 320px);
+    gap: 28px;
+    justify-content: center;
+    align-items: start;
+    padding-top: 22px;
+  }
+
+  .board-area { min-width: 0; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    margin-bottom: 10px;
+    padding: 9px 13px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.82rem;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #8d7b5b;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  .dot.red { background: #e78278; color: #e78278; }
+  .dot.blue { background: #86b8f4; color: #86b8f4; }
+  .dot.over { background: var(--gold); color: var(--gold); }
+
+  .status-bar strong { color: #f2e3c4; font-weight: 600; }
+
+  #turnText {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .board-shell {
+    position: relative;
+    padding: 10px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #715137, #38271b 42%, #261b13 64%, #5b402b);
+    box-shadow:
+      0 24px 50px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(237, 199, 128, 0.28);
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    aspect-ratio: 7 / 9;
+    gap: 2px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 9px;
+    background: #443326;
+    container-type: inline-size;
+    isolation: isolate;
+  }
+
+  .cell {
+    position: relative;
+    appearance: none;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 2px;
+    overflow: hidden;
+    background: #f0e2c7;
+    color: var(--ink);
+    cursor: default;
+    box-shadow: inset 0 0 0 1px rgba(102, 69, 33, 0.09);
+  }
+
+  .cell.river {
+    background: var(--river);
+    color: #d7f2ff;
+    box-shadow: inset 0 0 18px rgba(5, 37, 52, 0.3);
+  }
+
+  .cell.trap {
+    background: var(--trap);
+    box-shadow: inset 0 0 0 2px rgba(117, 75, 16, 0.24);
+  }
+
+  .cell.den {
+    background: #eddfc5;
+    box-shadow: inset 0 0 0 2px rgba(106, 74, 34, 0.22);
+  }
+
+  .cell.can-click { cursor: pointer; }
+
+  .cell.selected {
+    z-index: 2;
+    box-shadow:
+      inset 0 0 0 3px #a87323,
+      inset 0 0 22px rgba(226, 174, 72, 0.4);
+  }
+
+  .cell.last-from { box-shadow: inset 0 0 0 2px rgba(185, 145, 78, 0.35); }
+  .cell.last-to { box-shadow: inset 0 0 0 3px rgba(204, 158, 78, 0.7); }
+
+  .mark {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .mark.wave {
+    right: 6%;
+    bottom: 0;
+    color: rgba(221, 246, 255, 0.32);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(14px, 6cqw, 30px);
+    line-height: 1;
+  }
+
+  .mark.trap {
+    color: rgba(98, 61, 10, 0.42);
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: clamp(14px, 6cqw, 30px);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mark.den {
+    width: 64%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px dashed currentColor;
+    border-radius: 50%;
+    color: rgba(92, 63, 31, 0.36);
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: clamp(11px, 5cqw, 24px);
+    line-height: 1;
+  }
+
+  .piece {
+    position: relative;
+    z-index: 2;
+    width: 82%;
+    height: 82%;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    color: var(--ink);
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: clamp(16px, 6.4cqw, 34px);
+    font-weight: 700;
+    line-height: 1;
+    background: radial-gradient(circle at 34% 27%, #fffdf5, #f1e5cc 52%, #d8c29b);
+    box-shadow:
+      0 0 0 1px rgba(255, 253, 244, 0.6) inset,
+      0 4px 10px rgba(0, 0, 0, 0.32);
+  }
+
+  .piece.red { color: var(--red); border-color: rgba(145, 24, 31, 0.68); }
+  .piece.blue { color: var(--blue); border-color: rgba(24, 71, 132, 0.72); }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .panel {
+    padding: 17px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015)),
+      rgba(12, 19, 18, 0.56);
+  }
+
+  .panel h2 {
+    margin: 0 0 10px;
+    color: #eddfc1;
+    font-family: "KaiTi", "STKaiti", serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .panel p {
+    margin: 6px 0;
+    color: #b9aa90;
+    font-size: 0.78rem;
+    line-height: 1.7;
+  }
+
+  #roleText { color: #f0dfbb; }
+  #roleText.red { color: #e8948c; }
+  #roleText.blue { color: #93bdf0; }
+
+  .message {
+    min-height: 2.6em;
+    padding: 8px 10px;
+    border-left: 2px solid #a9854e;
+    border-radius: 0 8px 8px 0;
+    background: rgba(0, 0, 0, 0.16);
+    color: #d8c8a9 !important;
+  }
+
+  .chat-panel { display: flex; flex-direction: column; }
+
+  .chat-log {
+    height: 168px;
+    overflow-y: auto;
+    padding: 8px 10px;
+    border: 1px solid rgba(226, 192, 128, 0.14);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.2);
+    font-size: 0.78rem;
+    line-height: 1.65;
+    scrollbar-width: thin;
+  }
+
+  .chat-line { margin: 2px 0; word-break: break-word; }
+  .chat-role { font-weight: 600; margin-right: 4px; }
+  .chat-line.red { color: #e8948c; }
+  .chat-line.blue { color: #93bdf0; }
+  .chat-line.spectator { color: #c9bda6; }
+  .chat-empty { color: #7d735f; font-style: italic; }
+
+  .emoji-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 9px 0;
+  }
+
+  .emoji-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(226, 192, 128, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .emoji-btn:hover {
+    background: rgba(201, 159, 87, 0.18);
+    border-color: rgba(239, 207, 147, 0.5);
+  }
+
+  .chat-input-row { display: flex; gap: 8px; }
+
+  .chat-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 11px;
+    border: 1px solid rgba(226, 192, 128, 0.2);
+    border-radius: 8px;
+    color: #f0e2c7;
+    background: rgba(0, 0, 0, 0.26);
+    outline: none;
+    font-size: 0.8rem;
+  }
+
+  .chat-input-row input:focus { border-color: rgba(241, 215, 159, 0.55); }
+
+  .chat-input-row button {
+    flex: 0 0 auto;
+    padding: 0 14px;
+    border: 1px solid rgba(223, 185, 113, 0.5);
+    border-radius: 8px;
+    color: #f2dfb5;
+    background: rgba(201, 159, 87, 0.16);
+    cursor: pointer;
+    font-size: 0.78rem;
+  }
+
+  .chat-input-row button:hover:not(:disabled) { background: rgba(201, 159, 87, 0.28); }
+  .chat-input-row button:disabled,
+  .chat-input-row input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .join-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(9, 14, 13, 0.82);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+  }
+
+  .join-card {
+    width: min(92vw, 380px);
+    padding: 28px 24px;
+    text-align: center;
+    border: 1px solid rgba(224, 186, 113, 0.3);
+    border-radius: 18px;
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
+      #18211f;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.4);
+  }
+
+  .join-card .seal { margin: 0 auto 14px; }
+  .join-card h1 { font-size: 1.9rem; }
+  .join-card p { color: var(--muted); font-size: 0.8rem; line-height: 1.7; }
+
+  .join-card input {
+    width: 100%;
+    margin: 16px 0 10px;
+    padding: 11px 13px;
+    border: 1px solid rgba(226, 192, 128, 0.25);
+    border-radius: 9px;
+    color: #f0e2c7;
+    background: rgba(0, 0, 0, 0.28);
+    outline: none;
+    text-align: center;
+    letter-spacing: 0.06em;
+  }
+
+  .join-card input:focus { border-color: rgba(241, 215, 159, 0.6); }
+
+  .join-card button {
+    width: 100%;
+    padding: 11px;
+    border: 1px solid rgba(223, 185, 113, 0.55);
+    border-radius: 999px;
+    color: #f2dfb5;
+    background: rgba(201, 159, 87, 0.16);
+    cursor: pointer;
+    letter-spacing: 0.12em;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+
+  .join-card button:hover { background: rgba(201, 159, 87, 0.28); }
+  .join-card button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .hint {
+    margin-top: 10px !important;
+    color: #8b806c !important;
+    font-size: 0.7rem !important;
+  }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    .side { width: 100%; max-width: 560px; margin: 0 auto; }
+  }
+
+  @media (max-width: 560px) {
+    .page { width: 96vw; }
+    header { gap: 10px; }
+    .seal { width: 42px; font-size: 1.4rem; }
+    .board-shell { padding: 6px; }
+    .board { gap: 1px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="brand">
+      <div class="seal" aria-hidden="true">兽</div>
+      <div>
+        <h1>斗兽棋 · 联机</h1>
+        <p class="sub">七列九行 · 跨网对战</p>
+      </div>
+    </div>
+    <div class="room-badge" id="roomBadge" hidden>房间 <b id="roomLabel"></b></div>
+  </header>
+
+  <main>
+    <section class="board-area">
+      <div class="status-bar">
+        <span class="dot" id="statusDot"></span>
+        <strong id="statusText">连接服务器中…</strong>
+        <span id="turnText"></span>
+      </div>
+
+      <div class="board-shell">
+        <div class="board" id="board" aria-label="斗兽棋棋盘"></div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>对局</h2>
+        <p id="roleText">未加入</p>
+        <p id="playersText">红方：等待加入　蓝方：等待加入</p>
+        <p class="message" id="message">输入房间号加入对局。</p>
+      </section>
+
+      <section class="panel">
+        <h2>规则</h2>
+        <p>点击自己的棋子，再点目标格。走法、吃子、回合和胜负全部由服务器判定。</p>
+        <p>第三个人起自动进入观战，不会干扰对局。</p>
+      </section>
+
+      <section class="panel" id="spectatorPanel" hidden>
+        <h2>观战</h2>
+        <p>你正在观战。棋盘实时同步，但无法落子。</p>
+      </section>
+
+      <section class="panel chat-panel">
+        <h2>聊天</h2>
+        <div class="chat-log" id="chatLog" aria-live="polite">
+          <div class="chat-empty">还没有人说话</div>
+        </div>
+        <div class="emoji-row" aria-label="快捷表情">
+          <button class="emoji-btn" type="button" data-emoji="😀" aria-label="开心">😀</button>
+          <button class="emoji-btn" type="button" data-emoji="😂" aria-label="笑哭">😂</button>
+          <button class="emoji-btn" type="button" data-emoji="🤔" aria-label="思考">🤔</button>
+          <button class="emoji-btn" type="button" data-emoji="👍" aria-label="赞">👍</button>
+          <button class="emoji-btn" type="button" data-emoji="😡" aria-label="生气">😡</button>
+          <button class="emoji-btn" type="button" data-emoji="🐟" aria-label="鱼">🐟</button>
+          <button class="emoji-btn" type="button" data-emoji="👑" aria-label="皇冠">👑</button>
+        </div>
+        <div class="chat-input-row">
+          <input id="chatInput" type="text" placeholder="说点什么…" autocomplete="off" disabled>
+          <button id="chatSendBtn" type="button" disabled>发送</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="join-screen" id="joinScreen">
+  <div class="join-card">
+    <div class="seal" aria-hidden="true">兽</div>
+    <h1>斗兽棋 · 跨网联机</h1>
+    <p>输入同一个房间号，两个人就能开局；第三个人起自动观战。</p>
+    <input id="roomInput" maxlength="40" placeholder="房间号，例如 fish-001" autocomplete="off">
+    <button id="joinBtn" type="button" disabled>加入房间</button>
+    <p class="hint" id="joinHint">正在连接服务器…</p>
+  </div>
+</div>
+
+<script src="/multiplayer.js"></script>
+</body>
+</html>
