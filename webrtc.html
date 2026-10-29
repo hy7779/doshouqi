@@ -1753,38 +1753,6 @@
     flex-direction: column;
   }
 
-  .chat-close {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 5;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: none;
-    place-items: center;
-    appearance: none;
-    border: 1px solid rgba(226, 192, 128, 0.24);
-    border-radius: 50%;
-    color: #cfbd99;
-    background: rgba(0, 0, 0, 0.2);
-    cursor: pointer;
-    font-size: 1.15rem;
-    line-height: 1;
-    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
-  }
-
-  .chat-close:hover {
-    color: #f5e3ba;
-    border-color: rgba(239, 207, 147, 0.62);
-    background: rgba(201, 159, 87, 0.16);
-  }
-
-  .chat-close:focus-visible {
-    outline: 2px solid #f1d79f;
-    outline-offset: 2px;
-  }
-
   .mobile-chat-btn {
     position: relative;
     display: none;
@@ -1809,16 +1777,6 @@
       0 0 8px rgba(226, 93, 82, 0.72);
   }
 
-  .chat-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 85;
-    display: none;
-    background: rgba(4, 8, 7, 0.66);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-  }
-
   @keyframes mobile-chat-pulse {
     0%, 100% {
       border-color: rgba(217, 179, 108, 0.38);
@@ -1829,22 +1787,6 @@
       box-shadow:
         0 0 0 3px rgba(216, 179, 108, 0.16),
         0 0 18px rgba(216, 179, 108, 0.3);
-    }
-  }
-
-  @keyframes chat-backdrop-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes chat-sheet-up {
-    from {
-      opacity: 0;
-      transform: translate(-50%, 28px);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, 0);
     }
   }
 
@@ -2023,6 +1965,112 @@
     outline-offset: 2px;
   }
 
+  /* ---------- 手机端聊天弹窗 ---------- */
+  .mobile-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99999;
+  }
+
+  .mobile-modal-mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .mobile-modal-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60vh;
+    background: #18211f;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    z-index: 1;
+  }
+
+  .mobile-modal-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(226, 192, 128, 0.14);
+  }
+
+  .mobile-modal-header span {
+    color: #f3e4c5;
+    font-family: "STKaiti", "KaiTi", "Kaiti SC", serif;
+    font-size: 1.16rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  #closeMobileChat {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    appearance: none;
+    border: 1px solid rgba(226, 192, 128, 0.24);
+    border-radius: 50%;
+    color: #cfbd99;
+    background: rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  #closeMobileChat:hover {
+    color: #f5e3ba;
+    border-color: rgba(239, 207, 147, 0.62);
+    background: rgba(201, 159, 87, 0.16);
+  }
+
+  #closeMobileChat:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
+  }
+
+  .mobile-modal-content .chat-hint {
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+  }
+
+  .mobile-modal-content .chat-log {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+
+  .mobile-modal-content .emoji-row {
+    flex: 0 0 auto;
+  }
+
+  .mobile-modal-content .chat-input-row {
+    flex: 0 0 auto;
+  }
+
+  @media (min-width: 921px) {
+    .mobile-modal {
+      display: none !important;
+    }
+  }
+
   @media (max-width: 920px) {
     .room-panel {
       grid-column: 1 / -1;
@@ -2032,50 +2080,11 @@
       display: inline-flex;
     }
 
-    .chat-backdrop.is-open {
-      display: block;
-      animation: chat-backdrop-in 180ms ease both;
-    }
-
     .side-panel .chat-panel {
-      position: fixed;
-      left: 50%;
-      right: auto;
-      bottom: 0;
-      z-index: 86;
-      width: min(100%, 560px);
-      max-height: 82vh;
-      max-height: 82svh;
-      margin: 0;
-      padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
       display: none;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      border: 1px solid rgba(226, 192, 128, 0.26);
-      border-bottom: 0;
-      border-radius: 18px 18px 0 0;
-      background:
-        radial-gradient(circle at 100% 0%, rgba(201, 161, 92, 0.12), transparent 50%),
-        linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
-        #151f1d;
-      box-shadow: 0 -22px 60px rgba(0, 0, 0, 0.55);
-      transform: translateX(-50%);
     }
 
-    .side-panel .chat-panel.is-open {
-      display: flex;
-      animation: chat-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    }
-
-    .side-panel .chat-panel .panel-title {
-      padding-right: 36px;
-    }
-
-    .chat-close {
-      display: grid;
-    }
-
-    body.chat-sheet-open {
+    body.mobile-chat-open {
       overflow: hidden;
     }
   }
@@ -2132,7 +2141,7 @@
     </div>
     <div class="header-actions">
       <span class="conn-badge" id="connBadge" data-state="idle">未连接</span>
-      <button class="ghost-button mobile-chat-btn" id="mobileChatBtn" type="button" aria-controls="chatPanel" aria-expanded="false" aria-label="打开聊天">💬 聊天<span class="chat-dot" id="mobileChatDot" aria-hidden="true" hidden></span></button>
+      <button class="ghost-button mobile-chat-btn" id="mobileChatBtn" type="button" aria-controls="mobileChatModal" aria-expanded="false" aria-label="打开聊天">💬 聊天<span class="chat-dot" id="mobileChatDot" aria-hidden="true" hidden></span></button>
       <button class="ghost-button" id="resetButton" type="button">重新开局</button>
     </div>
   </header>
@@ -2165,7 +2174,6 @@
 
     <aside class="side-panel">
       <section class="panel chat-panel" id="chatPanel" aria-label="文字聊天">
-        <button class="chat-close" id="chatCloseBtn" type="button" aria-label="关闭聊天">×</button>
         <p class="panel-kicker">CHAT</p>
         <h2 class="panel-title">文字聊天</h2>
         <p class="chat-hint" id="chatHint">请先联机</p>
@@ -2264,8 +2272,6 @@
   <p class="footer-note">房主（红方）判定走子 · 数据经 PeerJS 点对点传输 · 无后端</p>
 </div>
 
-<div class="chat-backdrop" id="chatBackdrop" aria-hidden="true" hidden></div>
-
 <div class="lobby-screen" id="lobbyScreen" role="dialog" aria-modal="true" aria-labelledby="lobbyTitle">
   <div class="lobby-card">
     <div class="seal lobby-seal" aria-hidden="true">兽</div>
@@ -2295,6 +2301,31 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div id="mobileChatModal" class="mobile-modal" style="display:none;">
+  <div class="mobile-modal-mask" id="mobileChatMask"></div>
+  <div class="mobile-modal-content" role="dialog" aria-modal="true" aria-label="文字聊天">
+    <div class="mobile-modal-header">
+      <span>文字聊天</span>
+      <button id="closeMobileChat" type="button" aria-label="关闭聊天">✕</button>
+    </div>
+    <p class="chat-hint" id="mobileChatHint">请先联机</p>
+    <div class="chat-log" id="mobileChatLog" role="log" aria-live="polite" aria-label="聊天记录"></div>
+    <div class="emoji-row" id="mobileEmojiRow" aria-label="快捷表情">
+      <button class="emoji-button" id="mobileEmojiSmile" type="button" data-emoji="😀" aria-label="发送 😀" disabled>😀</button>
+      <button class="emoji-button" id="mobileEmojiLaugh" type="button" data-emoji="😂" aria-label="发送 😂" disabled>😂</button>
+      <button class="emoji-button" id="mobileEmojiThink" type="button" data-emoji="🤔" aria-label="发送 🤔" disabled>🤔</button>
+      <button class="emoji-button" id="mobileEmojiThumb" type="button" data-emoji="👍" aria-label="发送 👍" disabled>👍</button>
+      <button class="emoji-button" id="mobileEmojiAngry" type="button" data-emoji="😡" aria-label="发送 😡" disabled>😡</button>
+      <button class="emoji-button" id="mobileEmojiFish" type="button" data-emoji="🐟" aria-label="发送 🐟" disabled>🐟</button>
+      <button class="emoji-button" id="mobileEmojiCrown" type="button" data-emoji="👑" aria-label="发送 👑" disabled>👑</button>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="mobileChatInput" type="text" maxlength="200" autocomplete="off" placeholder="请先联机" aria-label="聊天内容" disabled>
+      <button class="chat-send" id="mobileChatSend" type="button" disabled>发送</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
@@ -2540,14 +2571,23 @@
   const chatInputEl = $('chatInput');
   const chatSendButtonEl = $('chatSend');
   const emojiRowEl = $('emojiRow');
-  const chatPanelEl = $('chatPanel');
-  const chatBackdropEl = $('chatBackdrop');
-  const chatCloseButtonEl = $('chatCloseBtn');
+  const mobileChatModalEl = $('mobileChatModal');
+  const mobileChatMaskEl = $('mobileChatMask');
+  const mobileChatLogEl = $('mobileChatLog');
+  const mobileChatHintEl = $('mobileChatHint');
+  const mobileChatInputEl = $('mobileChatInput');
+  const mobileChatSendButtonEl = $('mobileChatSend');
+  const mobileEmojiRowEl = $('mobileEmojiRow');
+  const mobileChatCloseButtonEl = $('closeMobileChat');
   const mobileChatBtnEl = $('mobileChatBtn');
   const mobileChatDotEl = $('mobileChatDot');
   const emojiButtons = [
     $('emojiSmile'), $('emojiLaugh'), $('emojiThink'), $('emojiThumb'),
     $('emojiAngry'), $('emojiFish'), $('emojiCrown'),
+  ];
+  const mobileEmojiButtons = [
+    $('mobileEmojiSmile'), $('mobileEmojiLaugh'), $('mobileEmojiThink'), $('mobileEmojiThumb'),
+    $('mobileEmojiAngry'), $('mobileEmojiFish'), $('mobileEmojiCrown'),
   ];
 
   const lobbyScreenEl = $('lobbyScreen');
@@ -2579,7 +2619,7 @@
   let joinTimer = null;
   let pendingTimer = null;
   let toastTimer = null;
-  let chatSheetOpen = false;
+  let mobileChatOpen = false;
   let chatUnread = false;
 
   const keyOf = (x, y) => x + ',' + y;
@@ -2613,7 +2653,7 @@
   /* ================= 联机大厅 ================= */
 
   function showLobbyChoices(hint, error) {
-    closeChatSheet(false);
+    closeMobileChat();
     lobbyScreenEl.hidden = false;
     lobbyChoicesEl.hidden = false;
     lobbyWaitingEl.hidden = true;
@@ -2625,7 +2665,7 @@
   }
 
   function showLobbyWaiting(code, status, title) {
-    closeChatSheet(false);
+    closeMobileChat();
     lobbyScreenEl.hidden = false;
     lobbyChoicesEl.hidden = true;
     lobbyWaitingEl.hidden = false;
@@ -2675,47 +2715,64 @@
 
     chatInputEl.disabled = !available;
     chatSendButtonEl.disabled = !available;
+    mobileChatInputEl.disabled = !available;
+    mobileChatSendButtonEl.disabled = !available;
+
     for (const button of emojiButtons) {
+      button.disabled = !available;
+    }
+    for (const button of mobileEmojiButtons) {
       button.disabled = !available;
     }
 
     chatHintEl.textContent = available ? '已连接 · 消息点对点发送' : '请先联机';
     chatHintEl.classList.toggle('is-online', available);
+    mobileChatHintEl.textContent = available ? '已连接 · 消息点对点发送' : '请先联机';
+    mobileChatHintEl.classList.toggle('is-online', available);
+
     chatInputEl.placeholder = available ? '说点什么…' : '请先联机';
+    mobileChatInputEl.placeholder = available ? '说点什么…' : '请先联机';
   }
 
   function clearChat() {
     chatLogEl.replaceChildren();
+    mobileChatLogEl.replaceChildren();
   }
 
   function appendChat(text, mine) {
     const body = String(text ?? '').trim().slice(0, 200);
     if (!body) return;
 
-    const bubble = document.createElement('div');
-    bubble.className = 'chat-bubble ' + (mine ? 'mine' : 'theirs');
-    bubble.textContent = body;
-    bubble.setAttribute('aria-label', (mine ? '你说：' : '对方说：') + body);
-    chatLogEl.appendChild(bubble);
+    const appendBubble = logEl => {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble ' + (mine ? 'mine' : 'theirs');
+      bubble.textContent = body;
+      bubble.setAttribute('aria-label', (mine ? '你说：' : '对方说：') + body);
+      logEl.appendChild(bubble);
 
-    while (chatLogEl.children.length > 200) {
-      chatLogEl.children[0].remove();
-    }
+      while (logEl.children.length > 200) {
+        logEl.children[0].remove();
+      }
 
-    chatLogEl.scrollTop = chatLogEl.scrollHeight;
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    appendBubble(chatLogEl);
+    appendBubble(mobileChatLogEl);
 
     if (!mine) notifyChatUnread();
   }
 
-  function sendChat(override) {
+  function sendChat(override, sourceInput) {
     if (!chatAvailable()) {
       showToast('请先联机');
       return;
     }
 
-    const text = String(override ?? chatInputEl.value).trim().slice(0, 200);
+    const source = sourceInput || chatInputEl;
+    const text = String(override ?? source.value).trim().slice(0, 200);
     if (!text) {
-      chatInputEl.focus();
+      source.focus();
       return;
     }
 
@@ -2729,11 +2786,11 @@
       }
     }
 
-    chatInputEl.value = '';
-    chatInputEl.focus();
+    source.value = '';
+    source.focus();
   }
 
-  /* ================= 手机端聊天悬浮窗 ================= */
+  /* ================= 手机端聊天弹窗 ================= */
 
   function isMobileLayout() {
     return window.innerWidth <= 920;
@@ -2747,37 +2804,35 @@
   }
 
   function notifyChatUnread() {
-    if (!isMobileLayout() || chatSheetOpen || chatUnread) return;
+    if (!isMobileLayout() || mobileChatOpen || chatUnread) return;
     chatUnread = true;
     mobileChatDotEl.hidden = false;
     mobileChatBtnEl.classList.add('has-unread');
     mobileChatBtnEl.setAttribute('aria-label', '聊天，有新消息');
   }
 
-  function openChatSheet() {
+  function openMobileChat() {
     if (!isMobileLayout()) return;
 
-    chatSheetOpen = true;
-    chatBackdropEl.hidden = false;
-    chatBackdropEl.classList.add('is-open');
-    chatPanelEl.classList.add('is-open');
+    mobileChatOpen = true;
+    mobileChatModalEl.style.display = 'block';
     mobileChatBtnEl.setAttribute('aria-expanded', 'true');
-    document.body.classList.add('chat-sheet-open');
+    document.body.classList.add('mobile-chat-open');
     clearChatUnread();
 
     window.setTimeout(() => {
-      if (chatSheetOpen) chatLogEl.scrollTop = chatLogEl.scrollHeight;
+      if (mobileChatOpen) {
+        mobileChatLogEl.scrollTop = mobileChatLogEl.scrollHeight;
+      }
     }, 0);
   }
 
-  function closeChatSheet(restoreFocus) {
-    const wasOpen = chatSheetOpen;
-    chatSheetOpen = false;
-    chatPanelEl.classList.remove('is-open');
-    chatBackdropEl.classList.remove('is-open');
-    chatBackdropEl.hidden = true;
+  function closeMobileChat(restoreFocus) {
+    const wasOpen = mobileChatOpen;
+    mobileChatOpen = false;
+    mobileChatModalEl.style.display = 'none';
     mobileChatBtnEl.setAttribute('aria-expanded', 'false');
-    document.body.classList.remove('chat-sheet-open');
+    document.body.classList.remove('mobile-chat-open');
     clearChatUnread();
 
     if (restoreFocus && wasOpen && isMobileLayout()) {
@@ -2787,7 +2842,7 @@
 
   function handleViewportChange() {
     if (!isMobileLayout()) {
-      closeChatSheet(false);
+      closeMobileChat(false);
       clearChatUnread();
     }
   }
@@ -3924,41 +3979,54 @@
   playAgainButtonEl.addEventListener('click', resetGame);
 
   chatSendButtonEl.addEventListener('click', () => {
-    sendChat();
+    sendChat(undefined, chatInputEl);
   });
 
   chatInputEl.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.isComposing) {
       event.preventDefault();
-      sendChat();
+      sendChat(undefined, chatInputEl);
     }
   });
 
   emojiRowEl.addEventListener('click', event => {
     const button = event.target.closest('.emoji-button');
     if (!button || !emojiRowEl.contains(button) || button.disabled) return;
-    sendChat(button.dataset.emoji);
+    sendChat(button.dataset.emoji, chatInputEl);
   });
 
   mobileChatBtnEl.addEventListener('click', () => {
-    if (chatSheetOpen) {
-      closeChatSheet(true);
-    } else {
-      openChatSheet();
+    openMobileChat();
+  });
+
+  mobileChatCloseButtonEl.addEventListener('click', () => {
+    closeMobileChat(true);
+  });
+
+  mobileChatMaskEl.addEventListener('click', () => {
+    closeMobileChat(true);
+  });
+
+  mobileChatSendButtonEl.addEventListener('click', () => {
+    sendChat(undefined, mobileChatInputEl);
+  });
+
+  mobileChatInputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.isComposing) {
+      event.preventDefault();
+      sendChat(undefined, mobileChatInputEl);
     }
   });
 
-  chatCloseButtonEl.addEventListener('click', () => {
-    closeChatSheet(true);
-  });
-
-  chatBackdropEl.addEventListener('click', () => {
-    closeChatSheet(true);
+  mobileEmojiRowEl.addEventListener('click', event => {
+    const button = event.target.closest('.emoji-button');
+    if (!button || !mobileEmojiRowEl.contains(button) || button.disabled) return;
+    sendChat(button.dataset.emoji, mobileChatInputEl);
   });
 
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && chatSheetOpen) {
-      closeChatSheet(true);
+    if (event.key === 'Escape' && mobileChatOpen) {
+      closeMobileChat(true);
     }
   });
 
