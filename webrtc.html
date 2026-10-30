@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#111918">
 <meta name="color-scheme" content="dark">
-<title>斗兽棋 · 房间联机</title>
+<title>斗兽棋 · 8 人房间</title>
 <style>
   :root {
     --ink: #211910;
@@ -71,7 +71,8 @@
   }
 
   body.room-open,
-  body.mobile-chat-open {
+  body.mobile-chat-open,
+  body.swap-open {
     overflow: hidden;
   }
 
@@ -1842,6 +1843,22 @@
     box-shadow: inset 0 0 24px rgba(37, 84, 144, 0.1);
   }
 
+  .duel-slot.can-swap {
+    cursor: pointer;
+    border-color: rgba(134, 184, 244, 0.4);
+    box-shadow: inset 0 0 24px rgba(49, 101, 163, 0.12);
+  }
+
+  .duel-slot.can-swap:hover {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(134, 184, 244, 0.12), transparent 72%),
+      rgba(0, 0, 0, 0.2);
+  }
+
+  .duel-slot.can-swap em {
+    color: #a8cdf7;
+  }
+
   .duel-avatar {
     width: 50px;
     height: 50px;
@@ -2025,6 +2042,17 @@
     box-shadow: inset 0 0 22px rgba(37, 84, 144, 0.09);
   }
 
+  .seat-card.can-swap {
+    cursor: pointer;
+    border-color: rgba(134, 184, 244, 0.36);
+  }
+
+  .seat-card.can-swap:hover {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(134, 184, 244, 0.1), transparent 72%),
+      rgba(0, 0, 0, 0.2);
+  }
+
   .seat-top {
     width: 100%;
     display: flex;
@@ -2169,6 +2197,133 @@
     color: #a8cdf7;
     border-color: rgba(61, 119, 184, 0.44);
     background: rgba(37, 84, 144, 0.14);
+  }
+
+  .seat-swap {
+    width: 100%;
+    margin-top: 1px;
+    appearance: none;
+    padding: 4px 6px;
+    border: 1px solid rgba(134, 184, 244, 0.36);
+    border-radius: 999px;
+    color: #b9d6f7;
+    background: rgba(49, 101, 163, 0.14);
+    cursor: pointer;
+    font-size: 0.58rem;
+    line-height: 1.3;
+    letter-spacing: 0.05em;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+
+  .seat-swap:hover {
+    border-color: rgba(160, 203, 250, 0.7);
+    background: rgba(49, 101, 163, 0.28);
+  }
+
+  .seat-swap:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
+  }
+
+  /* ---------- 换人确认 ---------- */
+  .swap-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background:
+      radial-gradient(circle at 50% 40%, rgba(49, 101, 163, 0.12), transparent 52%),
+      rgba(5, 9, 8, 0.8);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    animation: overlay-in 220ms ease both;
+  }
+
+  .swap-card {
+    width: min(92vw, 430px);
+    padding: 25px 23px 21px;
+    border: 1px solid rgba(224, 186, 113, 0.34);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(201, 161, 92, 0.1), transparent 60%),
+      linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
+      #18211f;
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.48);
+    animation: card-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .swap-title {
+    margin: 0 0 11px;
+    color: #f3e4c5;
+    font-family: "STKaiti", "KaiTi", "Kaiti SC", serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .swap-text {
+    margin: 0;
+    color: #b9aa90;
+    font-size: 0.8rem;
+    line-height: 1.75;
+  }
+
+  .swap-text strong {
+    color: #f0d18f;
+    font-weight: 600;
+  }
+
+  .swap-actions {
+    display: flex;
+    gap: 9px;
+    margin-top: 20px;
+  }
+
+  .swap-btn {
+    flex: 1;
+    appearance: none;
+    padding: 10px 14px;
+    border: 1px solid rgba(226, 192, 128, 0.3);
+    border-radius: 999px;
+    color: #e7d8ba;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .swap-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .swap-btn.accept {
+    border-color: rgba(121, 195, 154, 0.52);
+    color: #c5e7ce;
+    background: linear-gradient(180deg, rgba(58, 116, 80, 0.36), rgba(34, 77, 52, 0.18));
+  }
+
+  .swap-btn.accept:hover {
+    border-color: rgba(155, 220, 178, 0.8);
+    background: linear-gradient(180deg, rgba(69, 136, 94, 0.48), rgba(34, 77, 52, 0.24));
+  }
+
+  .swap-btn.reject {
+    border-color: rgba(208, 104, 95, 0.36);
+    color: #e7b4ad;
+    background: rgba(120, 40, 36, 0.12);
+  }
+
+  .swap-btn.reject:hover {
+    border-color: rgba(227, 139, 129, 0.66);
+    background: rgba(140, 48, 43, 0.22);
+  }
+
+  .swap-btn:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
   }
 
   .room-foot {
@@ -2447,7 +2602,7 @@
       <div class="seal" aria-hidden="true">兽</div>
       <div class="brand-copy">
         <h1>斗兽棋</h1>
-        <p class="subtitle">七列九行 · 八人房间 · 两人对弈</p>
+        <p class="subtitle">七列九行 · 1 房主 + 7 加入者</p>
       </div>
     </div>
     <div class="header-actions">
@@ -2473,7 +2628,7 @@
           <input class="join-code-input" id="joinCodeInput" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000" aria-label="6 位邀请码">
           <button class="join-button" id="joinRoomButton" type="button">加入</button>
         </div>
-        <p class="entry-status" id="entryStatus">未连接 · 数据点对点传输</p>
+        <p class="entry-status" id="entryStatus">未连接 · 星型 P2P · 无后端</p>
         <button class="open-room-button" id="openRoomButton" type="button" hidden>打开房间面板</button>
         <p class="entry-error" id="entryError" role="alert" hidden></p>
       </section>
@@ -2498,7 +2653,7 @@
         </div>
       </section>
 
-      <p class="rail-footnote">房主校验走子 · 数据只在浏览器之间传输</p>
+      <p class="rail-footnote">房主广播房间与棋盘 · 星型 P2P · 无后端</p>
     </aside>
 
     <section class="board-column" aria-label="对局区域">
@@ -2579,14 +2734,14 @@
     </aside>
   </main>
 
-  <p class="footer-note">房主校验走子 · 数据经 PeerJS 点对点传输 · 无后端</p>
+  <p class="footer-note">房主校验走子 · 星型 P2P 广播 · 无后端</p>
 </div>
 
 <div class="room-screen" id="roomScreen" hidden role="dialog" aria-modal="true" aria-labelledby="roomTitle">
   <div class="room-sheet" id="roomSheet">
     <header class="room-head">
       <div class="room-head-copy">
-        <p class="room-kicker">ROOM · 点对点房间</p>
+        <p class="room-kicker">ROOM · 星型 P2P 房间</p>
         <h2 class="room-title" id="roomTitle">房间 <button class="room-code" id="roomCode" type="button" title="点击复制邀请码">------</button></h2>
         <p class="room-sub" id="roomSub">正在创建房间…</p>
       </div>
@@ -2627,15 +2782,27 @@
             <p class="panel-kicker">SEATS</p>
             <h3>玩家坑位 · 8</h3>
           </div>
-          <span class="seats-hint">昵称可改 · 点头像换图</span>
+          <span class="seats-hint">昵称可改 · 对局中可申请换人</span>
         </div>
         <div class="seat-grid" id="seatGrid"></div>
       </section>
     </div>
 
     <footer class="room-foot" id="roomFootHint">
-      房主自动坐 0 号位 · 前两位加入对战区的玩家对弈 · 第 3 位起进入观战席（暂不同步棋盘）
+      房主自动坐 0 号位 · 前两位加入对战区的玩家对弈 · 对局中观战者可点击红蓝玩家申请换人，由房主确认
     </footer>
+  </div>
+</div>
+
+<div class="swap-screen" id="swapScreen" hidden role="dialog" aria-modal="true" aria-labelledby="swapTitle">
+  <div class="swap-card">
+    <p class="panel-kicker">SWAP</p>
+    <h2 class="swap-title" id="swapTitle">换人请求</h2>
+    <p class="swap-text" id="swapText"></p>
+    <div class="swap-actions">
+      <button class="swap-btn reject" id="swapRejectButton" type="button">拒绝</button>
+      <button class="swap-btn accept" id="swapAcceptButton" type="button">同意换人</button>
+    </div>
   </div>
 </div>
 
@@ -2676,8 +2843,9 @@
 (() => {
   // ============================================================
   // 斗兽棋 · 单文件 P2P 房间版
-  // 房主是唯一权威端：校验走子、维护 8 人坑位、同步棋盘。
-  // 只有红蓝两位玩家接收棋盘状态；其余坑位是观战 UI。
+  // 房主是唯一权威端：校验走子、维护 8 人坑位，并把棋盘 + 玩家列表
+  // 广播给 conns 数组里的所有人。红蓝玩家可走子，其余玩家只读观战。
+  // 观战者可向正在下棋的玩家发起换人请求，由房主弹窗确认。
   // ============================================================
 
   /* ===== RULES START ===== */
@@ -2946,6 +3114,10 @@
   const readyBarEl = $('readyBar');
   const seatGridEl = $('seatGrid');
   const avatarFileInputEl = $('avatarFileInput');
+  const swapScreenEl = $('swapScreen');
+  const swapTextEl = $('swapText');
+  const swapAcceptButtonEl = $('swapAcceptButton');
+  const swapRejectButtonEl = $('swapRejectButton');
 
   // ---------- 常量与状态 ----------
   const SEAT_COUNT = 8;
@@ -2963,16 +3135,16 @@
   let roomOverlayOpen = false;
 
   let peer = null;
-  let hostConns = new Map();     // 房主：peerId -> { conn, seat }
+  let conns = [];                // 房主：所有加入者连接 [{ conn, seat, opened }]
   let conn = null;               // 加入者：通往房主的数据通道
   let connected = false;         // 加入者数据通道是否已打开
   let connecting = false;
-  let connSeq = 0;
 
   let pending = false;
   let joinTimer = null;
   let pendingTimer = null;
   let toastTimer = null;
+  let pendingSwap = null;        // 房主：待确认的换人请求
 
   let mobileChatOpen = false;
   let chatUnread = false;
@@ -2984,7 +3156,7 @@
   const keyOf = (x, y) => x + ',' + y;
   const guestCount = () => {
     let n = 0;
-    for (const entry of hostConns.values()) {
+    for (const entry of conns) {
       if (entry.conn && entry.conn.open) n++;
     }
     return n;
@@ -3004,6 +3176,8 @@
       pending = false;
       window.clearTimeout(pendingTimer);
       pendingTimer = null;
+      selected = null;
+      legalMoves = [];
     }
   }
 
@@ -3110,30 +3284,37 @@
 
   /* ================= 房间视图 ================= */
 
-  function publicRoom() {
+  function publicRoom(includeAvatars = true) {
     if (!room) return null;
     return {
       code: room.code || '',
       phase: room.phase === 'playing' ? 'playing' : 'lobby',
       match: room.match.slice(0, 2),
-      seats: room.seats.map(seat => seat ? {
-        name: cleanName(seat.name, '玩家'),
-        avatar: seat.avatar || null,
-        ready: seat.ready === true,
-        color: seat.color === 'red' || seat.color === 'blue' ? seat.color : null,
-      } : null),
+      seats: room.seats.map(seat => {
+        if (!seat) return null;
+        const data = {
+          name: cleanName(seat.name, '玩家'),
+          ready: seat.ready === true,
+          color: seat.color === 'red' || seat.color === 'blue' ? seat.color : null,
+        };
+        if (includeAvatars) data.avatar = seat.avatar || null;
+        return data;
+      }),
     };
   }
 
-  function cleanRoom(raw) {
+  function cleanRoom(raw, previousRoom) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.seats)) return null;
     const seats = Array(SEAT_COUNT).fill(null);
     for (let i = 0; i < SEAT_COUNT; i++) {
       const seat = raw.seats[i];
       if (!seat || typeof seat !== 'object') continue;
+      const previousSeat = previousRoom && previousRoom.seats ? previousRoom.seats[i] : null;
       seats[i] = {
         name: cleanName(seat.name, defaultSeatName(i)),
-        avatar: cleanAvatar(seat.avatar) || defaultAvatar(i),
+        avatar: cleanAvatar(seat.avatar) ||
+          (previousSeat && previousSeat.avatar) ||
+          defaultAvatar(i),
         ready: seat.ready === true,
         color: seat.color === 'red' || seat.color === 'blue' ? seat.color : null,
       };
@@ -3209,18 +3390,36 @@
       stateEl.className = 'seat-state is-empty';
       stateEl.textContent = '空位';
 
-      card.append(top, avatarBtn, nameInput, emptyLabel, stateEl);
+      const swapBtn = document.createElement('button');
+      swapBtn.type = 'button';
+      swapBtn.className = 'seat-swap';
+      swapBtn.textContent = '请求换人';
+      swapBtn.hidden = true;
+
+      card.append(top, avatarBtn, nameInput, emptyLabel, stateEl, swapBtn);
       fragment.appendChild(card);
-      seatEls.push({ card, tag, avatarBtn, nameInput, emptyLabel, stateEl, timer: null });
+      seatEls.push({ card, tag, avatarBtn, nameInput, emptyLabel, stateEl, swapBtn, timer: null });
     }
     seatGridEl.appendChild(fragment);
 
     seatGridEl.addEventListener('click', event => {
+      const swapButton = event.target.closest('.seat-swap');
+      if (swapButton && seatGridEl.contains(swapButton)) {
+        const card = swapButton.closest('.seat-card');
+        if (card) requestSwap(Number(card.dataset.seat));
+        return;
+      }
       const button = event.target.closest('.seat-avatar');
-      if (!button || !seatGridEl.contains(button)) return;
-      const card = button.closest('.seat-card');
-      if (!card) return;
-      onAvatarClick(Number(card.dataset.seat));
+      if (button && seatGridEl.contains(button)) {
+        const card = button.closest('.seat-card');
+        if (card) onAvatarClick(Number(card.dataset.seat));
+        return;
+      }
+      const card = event.target.closest('.seat-card');
+      if (!card || !seatGridEl.contains(card)) return;
+      if (event.target.closest('.seat-name')) return;
+      const index = Number(card.dataset.seat);
+      if (canRequestSwap(index)) requestSwap(index);
     });
 
     seatGridEl.addEventListener('input', event => {
@@ -3270,6 +3469,14 @@
       duelSlotsEl.appendChild(el);
       duelSlotEls.push({ el, avatar, name, meta });
     }
+
+    duelSlotsEl.addEventListener('click', event => {
+      const slot = event.target.closest('.duel-slot');
+      if (!slot || !duelSlotsEl.contains(slot) || !slot.dataset.seat) return;
+      const seat = Number(slot.dataset.seat);
+      if (!Number.isInteger(seat) || !canRequestSwap(seat)) return;
+      requestSwap(seat);
+    });
   }
 
   function canEditSeatName(index) {
@@ -3301,6 +3508,10 @@
   function onAvatarClick(index) {
     if (!room || !room.seats[index]) return;
     if (index !== mySeat) {
+      if (canRequestSwap(index)) {
+        requestSwap(index);
+        return;
+      }
       showToast('只能更换自己的头像');
       return;
     }
@@ -3321,12 +3532,14 @@
       const inMatch = !!seat && !!room && room.match.includes(i);
       const color = seat && (seat.color === 'red' || seat.color === 'blue') ? seat.color : null;
       const editable = canEditSeatName(i);
+      const swappable = canRequestSwap(i);
 
       info.card.classList.toggle('is-empty', !seat);
       info.card.classList.toggle('is-me', mine);
       info.card.classList.toggle('is-player', inMatch);
       info.card.classList.toggle('is-red', color === 'red');
       info.card.classList.toggle('is-blue', color === 'blue');
+      info.card.classList.toggle('can-swap', swappable);
 
       info.nameInput.hidden = !seat;
       info.emptyLabel.hidden = !!seat;
@@ -3334,6 +3547,7 @@
       info.avatarBtn.classList.toggle('is-mine', mine);
       info.nameInput.readOnly = !editable;
       info.nameInput.classList.toggle('is-readonly', !editable);
+      info.swapBtn.hidden = !swappable;
       if (document.activeElement !== info.nameInput) {
         info.nameInput.value = seat ? seat.name : '';
       }
@@ -3347,7 +3561,10 @@
         info.stateEl.textContent = stateText;
         info.stateEl.className = 'seat-state' +
           (color ? ' is-' + color : (inMatch ? (seat.ready ? ' is-ready' : ' is-readying') : ''));
-        info.avatarBtn.setAttribute('aria-label', mine ? '更换我的头像' : (seat.name + ' 的头像'));
+        info.avatarBtn.setAttribute('aria-label', mine
+          ? '更换我的头像'
+          : (swappable ? '请求替换 ' + seat.name : seat.name + ' 的头像'));
+        info.swapBtn.setAttribute('aria-label', '请求替换 ' + seat.name);
       } else {
         setAvatarInto(info.avatarBtn, null, { kind: 'emoji', emoji: '＋' });
         info.tag.textContent = '';
@@ -3364,9 +3581,13 @@
       if (!info) continue;
       const seatIndex = room && room.match[i] != null ? room.match[i] : null;
       const seat = seatIndex != null && room.seats[seatIndex] ? room.seats[seatIndex] : null;
+      const swappable = seatIndex != null && canRequestSwap(seatIndex);
       info.el.classList.toggle('is-empty', !seat);
       info.el.classList.toggle('is-red', !!seat && seat.color === 'red');
       info.el.classList.toggle('is-blue', !!seat && seat.color === 'blue');
+      info.el.classList.toggle('can-swap', swappable);
+      info.el.dataset.seat = seatIndex != null ? String(seatIndex) : '';
+      info.el.title = swappable ? '点击请求换人' : '';
       setAvatarInto(info.avatar, seat ? seat.avatar : null,
         seat ? defaultAvatar(seatIndex) : { kind: 'emoji', emoji: i === 0 ? '一' : '二' });
       info.name.textContent = seat ? seat.name : (i === 0 ? '玩家一' : '玩家二');
@@ -3375,8 +3596,217 @@
         if (seat.color) meta = seat.color === 'red' ? '红方' : '蓝方';
         else if (seat.ready) meta = '已准备 ✓';
         else meta = '未准备';
+        if (swappable) meta += ' · 点击请求换人';
       }
       info.meta.textContent = meta;
+    }
+  }
+
+  /* ================= 换人 ================= */
+
+  function colorLabel(color) {
+    return color === 'red' ? '红方' : '蓝方';
+  }
+
+  function canSwapPair(fromSeat, targetSeat) {
+    if (!isHost || !room || room.phase !== 'playing') return false;
+    if (!game || game.status !== 'playing') return false;
+    if (!Number.isInteger(fromSeat) || !Number.isInteger(targetSeat)) return false;
+    if (fromSeat === targetSeat) return false;
+    if (fromSeat < 0 || fromSeat >= SEAT_COUNT || targetSeat < 0 || targetSeat >= SEAT_COUNT) return false;
+    const from = room.seats[fromSeat];
+    const target = room.seats[targetSeat];
+    if (!from || !target) return false;
+    if (room.match.includes(fromSeat)) return false;
+    if (!room.match.includes(targetSeat)) return false;
+    if (from.color === 'red' || from.color === 'blue') return false;
+    return target.color === 'red' || target.color === 'blue';
+  }
+
+  function canRequestSwap(targetSeat) {
+    if (!room || room.phase !== 'playing') return false;
+    if (!game || game.status !== 'playing') return false;
+    if (!(isHost || connected)) return false;
+    if (mySeat < 0 || mySeat === targetSeat) return false;
+    if (myColor()) return false;
+    const target = room.seats[targetSeat];
+    return !!(target && (target.color === 'red' || target.color === 'blue'));
+  }
+
+  function requestSwap(targetSeat) {
+    if (!canRequestSwap(targetSeat)) {
+      if (!room || room.phase !== 'playing' || !game || game.status !== 'playing') {
+        showToast('对局进行中才能请求换人');
+      } else if (myColor()) {
+        showToast('你正在对局中，不能请求换人');
+      } else {
+        showToast('只能向正在下棋的红蓝玩家发起换人');
+      }
+      return;
+    }
+
+    if (isHost) {
+      openSwapReview(mySeat, targetSeat);
+      return;
+    }
+
+    if (sendToHost({ type: 'swap-request', targetSeat })) {
+      showToast('换人请求已发送，等待房主确认');
+    } else {
+      showToast('发送失败，请检查连接');
+    }
+  }
+
+  function notifySeat(seat, text) {
+    if (!isHost || !text) return;
+    if (seat === mySeat) {
+      showToast(text);
+      return;
+    }
+    for (const entry of conns) {
+      if (entry.seat === seat) {
+        sendTo(entry.conn, { type: 'notice', text });
+        return;
+      }
+    }
+  }
+
+  function clearPendingSwap() {
+    if (pendingSwap) {
+      window.clearTimeout(pendingSwap.timer);
+      pendingSwap = null;
+    }
+    swapScreenEl.hidden = true;
+    document.body.classList.remove('swap-open');
+  }
+
+  function cancelPendingSwapForGameEnd() {
+    if (!pendingSwap) return;
+    const fromSeat = pendingSwap.fromSeat;
+    clearPendingSwap();
+    notifySeat(fromSeat, '对局已经结束，换人请求已取消');
+  }
+
+  function openSwapReview(fromSeat, targetSeat) {
+    if (!isHost || !room) return;
+
+    if (!canSwapPair(fromSeat, targetSeat)) {
+      notifySeat(fromSeat, '换人条件已经变化，请重新选择');
+      return;
+    }
+
+    if (pendingSwap) {
+      notifySeat(fromSeat, '房主正在处理另一个换人请求，请稍后再试');
+      return;
+    }
+
+    const from = room.seats[fromSeat];
+    const target = room.seats[targetSeat];
+    const color = target.color;
+    const request = {
+      fromSeat,
+      targetSeat,
+      color,
+      fromName: from.name,
+      targetName: target.name,
+      timer: null,
+    };
+    pendingSwap = request;
+
+    request.timer = window.setTimeout(() => {
+      if (pendingSwap !== request) return;
+      rejectSwap('换人请求等待超时，已自动取消');
+    }, 25000);
+
+    swapTextEl.textContent = '观众「' + from.name + '」请求替换「' + target.name + '」的' +
+      colorLabel(color) + '位置。同意后，「' + from.name + '」接手' + colorLabel(color) +
+      '，「' + target.name + '」转为观战。';
+    closeMobileChat(false);
+    swapScreenEl.hidden = false;
+    document.body.classList.add('swap-open');
+    swapAcceptButtonEl.focus();
+
+    if (targetSeat !== mySeat) {
+      notifySeat(targetSeat, '观众「' + from.name + '」请求与你换位，房主正在确认…');
+    }
+  }
+
+  function rejectSwap(message) {
+    const request = pendingSwap;
+    const text = message || '房主拒绝了换人请求';
+    if (request) {
+      window.clearTimeout(request.timer);
+      pendingSwap = null;
+      swapScreenEl.hidden = true;
+      document.body.classList.remove('swap-open');
+      if (request.fromSeat !== mySeat) notifySeat(request.fromSeat, text);
+      if (request.targetSeat !== mySeat) notifySeat(request.targetSeat, '换人请求已取消：' + text);
+    } else {
+      swapScreenEl.hidden = true;
+      document.body.classList.remove('swap-open');
+    }
+    showToast(text);
+  }
+
+  function performSwap(request) {
+    if (!isHost || !room) return;
+    const from = room.seats[request.fromSeat];
+    const target = room.seats[request.targetSeat];
+    if (!from || !target) return;
+
+    from.color = request.color;
+    from.ready = false;
+    target.color = null;
+    target.ready = false;
+
+    room.match = room.match.map(index => index === request.targetSeat ? request.fromSeat : index);
+    if (!room.match.includes(request.fromSeat)) {
+      room.match.push(request.fromSeat);
+    }
+    room.match = Array.from(new Set(room.match)).slice(0, 2);
+
+    syncRole();
+    broadcastSnapshot();
+    render();
+  }
+
+  function acceptSwap() {
+    const request = pendingSwap;
+    if (!request) return;
+
+    window.clearTimeout(request.timer);
+    pendingSwap = null;
+    swapScreenEl.hidden = true;
+    document.body.classList.remove('swap-open');
+
+    if (!canSwapPair(request.fromSeat, request.targetSeat)) {
+      notifySeat(request.fromSeat, '换人失败：对局状态已经变化');
+      showToast('换人失败：对局状态已经变化');
+      return;
+    }
+
+    performSwap(request);
+    const color = colorLabel(request.color);
+
+    if (mySeat === request.fromSeat) {
+      showToast('换人成功 · 你接手' + color);
+    } else if (mySeat === request.targetSeat) {
+      showToast('你已转为观战 · ' + color + '由「' + request.fromName + '」接手');
+    } else {
+      showToast('换人完成 · 「' + request.fromName + '」接手' + color);
+    }
+
+    for (const entry of conns) {
+      let text;
+      if (entry.seat === request.fromSeat) {
+        text = '换人成功 · 你接手' + color;
+      } else if (entry.seat === request.targetSeat) {
+        text = '你已转为观战 · ' + color + '由「' + request.fromName + '」接手';
+      } else {
+        text = '换人完成 · 「' + request.fromName + '」接手' + color +
+          '，「' + request.targetName + '」转为观战';
+      }
+      sendTo(entry.conn, { type: 'notice', text });
     }
   }
 
@@ -3397,7 +3827,7 @@
       entryNoteEl.textContent = '开一间房，把邀请码发给朋友；或输入邀请码加入。';
       entryStatusEl.textContent = !window.Peer
         ? 'PeerJS 加载失败，请检查网络后刷新页面'
-        : (connecting ? '正在连接…' : '未连接 · 数据点对点传输');
+        : (connecting ? '正在连接…' : '未连接 · 星型 P2P · 无后端');
       createRoomMetaEl.textContent = '8 人坑位 · 2 人对弈';
     }
   }
@@ -3434,7 +3864,7 @@
     if (!room) return '';
     if (room.phase === 'playing') {
       if (role) return '对局进行中 · 你执' + (role === 'red' ? '红方' : '蓝方');
-      return isHost ? '对局进行中 · 房主视角' : '对局进行中 · 你在观战席';
+      return '对局进行中 · 观战席 · 棋盘只读';
     }
     if (isHost) {
       if (!peer || !peer.open) return '正在创建房间…';
@@ -3460,7 +3890,7 @@
 
     roomCodeEl.textContent = room.code || '------';
     roomSubEl.textContent = roomSubText();
-    roomBackButtonEl.hidden = !(room.phase === 'playing' && (role || isHost));
+    roomBackButtonEl.hidden = room.phase !== 'playing';
     copyCodeButtonEl.disabled = !room.code;
 
     const count = room.match.length;
@@ -3475,7 +3905,7 @@
 
     if (room.phase === 'playing') {
       joinMatchButtonEl.disabled = true;
-      joinMatchButtonEl.textContent = '对局进行中';
+      joinMatchButtonEl.textContent = role ? '对局进行中' : '观战席 · 棋盘只读';
       readyButtonEl.hidden = true;
       leaveMatchButtonEl.hidden = true;
     } else if (inMatch) {
@@ -3501,11 +3931,11 @@
     if (room.phase === 'playing') {
       duelNoteEl.textContent = role
         ? '对局进行中 · 点击“返回棋盘”继续对弈。'
-        : '对局进行中 · 观战同步暂未开放，观战席只看房间。';
+        : '对局进行中 · 棋盘实时同步、观战只读；点击红蓝玩家可请求换人。';
     } else if (inMatch) {
       duelNoteEl.textContent = '你已进入对决区 · 点击准备，两人都准备后自动开局。';
     } else if (count >= 2) {
-      duelNoteEl.textContent = '对决区已满 · 其余玩家进入观战席，暂不同步棋盘。';
+      duelNoteEl.textContent = '对决区已满 · 其余玩家进入观战席，也可实时看棋。';
     } else if (count === 1) {
       duelNoteEl.textContent = '还差一位玩家 · 再来一人点击加入对战即可成局。';
     } else {
@@ -3526,7 +3956,7 @@
   }
 
   function closeRoomOverlay() {
-    if (!room || room.phase !== 'playing' || !(role || isHost)) return;
+    if (!room || room.phase !== 'playing') return;
     roomOverlayOpen = false;
     render();
   }
@@ -3553,7 +3983,7 @@
       if (available) {
         hint = isHost
           ? '房间 ' + (guestCount() + 1) + ' 人 · 消息广播'
-          : '已连接 · 消息点对点发送';
+          : '已连接 · 房间消息广播';
       } else {
         hint = isHost ? '等待玩家加入' : '等待房主连接…';
       }
@@ -3629,7 +4059,7 @@
     appendChat(text, true, name);
 
     if (isHost) {
-      for (const entry of hostConns.values()) {
+      for (const entry of conns) {
         sendTo(entry.conn, { type: 'chat', text, name });
       }
     } else {
@@ -3701,7 +4131,7 @@
     if (!room) return '先创建或加入房间';
     if (!isHost && !connected) return '连接已断开';
     if (room.phase !== 'playing') return '对局还没开始';
-    if (!role) return '你在观战席，暂时不能走子';
+    if (!role) return '你在观战席，棋盘是只读的';
     if (!game) return '等待房主同步棋盘';
     if (game.status !== 'playing') return '对局已经结束';
     if (pending) return '走法已发送，等待房主确认';
@@ -3735,9 +4165,24 @@
     }
 
     if (!role) {
+      if (!game) {
+        statusTitleEl.textContent = '观战中';
+        statusDetailEl.textContent = '等待房主同步棋盘';
+        moveNumberEl.textContent = '—';
+        return;
+      }
+      if (game.status !== 'playing') {
+        const side = game.winner;
+        if (side) turnPanelEl.classList.add('is-' + side);
+        statusTitleEl.textContent = side ? SIDE_NAME[side] + '胜利' : '对局结束';
+        statusDetailEl.textContent = (game.reason || '对局结束') + ' · 观战结束';
+        moveNumberEl.textContent = '共 ' + game.ply + ' 手';
+        return;
+      }
+      turnPanelEl.classList.add('is-' + game.turn);
       statusTitleEl.textContent = '观战中';
-      statusDetailEl.textContent = isHost ? '房主视角 · 可返回棋盘查看' : '对局进行中 · 观战同步暂未开放';
-      moveNumberEl.textContent = game ? '第 ' + (Math.floor(game.ply / 2) + 1) + ' 回合' : '—';
+      statusDetailEl.textContent = SIDE_NAME[game.turn] + '回合 · 棋盘只读，点击红蓝玩家可请求换人';
+      moveNumberEl.textContent = '第 ' + (Math.floor(game.ply / 2) + 1) + ' 回合';
       return;
     }
 
@@ -3787,16 +4232,10 @@
   }
 
   function updateSidePanel() {
-    const spectatorGuest = !!(room && room.phase === 'playing' && !role && !isHost);
     const pieces = game ? game.pieces : [];
 
-    if (spectatorGuest) {
-      redCountEl.textContent = '—';
-      blueCountEl.textContent = '—';
-    } else {
-      redCountEl.textContent = String(pieces.filter(p => p.alive !== false && p.side === 'red').length);
-      blueCountEl.textContent = String(pieces.filter(p => p.alive !== false && p.side === 'blue').length);
-    }
+    redCountEl.textContent = String(pieces.filter(p => p.alive !== false && p.side === 'red').length);
+    blueCountEl.textContent = String(pieces.filter(p => p.alive !== false && p.side === 'blue').length);
 
     const redSeat = seatByColor('red');
     const blueSeat = seatByColor('blue');
@@ -3828,7 +4267,18 @@
     }
 
     if (!role) {
-      selectionCardEl.innerHTML = '<strong>观战中</strong>观战同步暂未开放，先在这里看房间动态。';
+      if (!game) {
+        selectionCardEl.innerHTML = '<strong>观战中</strong>等待房主同步棋盘。';
+        return;
+      }
+      if (game.status !== 'playing') {
+        const result = game.winner ? SIDE_NAME[game.winner] + '获胜。' : '对局结束。';
+        selectionCardEl.innerHTML = '<strong>观战结束</strong>' + result +
+          (game.reason ? ' · ' + game.reason : '');
+        return;
+      }
+      selectionCardEl.innerHTML = '<strong class="' + game.turn + '-text">' +
+        SIDE_NAME[game.turn] + '回合</strong>棋盘只读 · 点击红蓝玩家的「请求换人」可申请换位。';
       return;
     }
 
@@ -3882,8 +4332,8 @@
     resultWinnerEl.className = game.winner || '';
     resultReasonEl.textContent = game.reason || '对局结束';
 
-    playAgainButtonEl.textContent = isHost ? '再来一局' : '请求重开';
-    playAgainButtonEl.disabled = !room || !role || (!isHost && !connected);
+    playAgainButtonEl.textContent = isHost ? '再来一局' : (role ? '请求重开' : '观战中');
+    playAgainButtonEl.disabled = !room || (!isHost && (!role || !connected));
   }
 
   function makeTerrainMark(className, text) {
@@ -3996,7 +4446,7 @@
     if (isHost) {
       room.match.push(mySeat);
       if (room.seats[mySeat]) room.seats[mySeat].ready = false;
-      broadcastRoom();
+      broadcastSnapshot(false);
       render();
       showToast('已进入红蓝对决区，点击准备');
     } else if (connected) {
@@ -4013,7 +4463,7 @@
       for (const i of room.match) {
         if (room.seats[i]) room.seats[i].ready = false;
       }
-      broadcastRoom();
+      broadcastSnapshot(false);
       render();
       showToast('已退出对决区');
     } else if (connected) {
@@ -4033,7 +4483,7 @@
 
     if (isHost) {
       seat.ready = next;
-      broadcastRoom();
+      broadcastSnapshot(false);
       render();
       checkStart();
     } else if (connected) {
@@ -4054,10 +4504,7 @@
     if (!room.match.every(index => room.seats[index] && room.seats[index].ready)) return;
     const everyoneHere = room.match.every(index => {
       if (index === 0) return true;
-      for (const entry of hostConns.values()) {
-        if (entry.seat === index && entry.conn.open) return true;
-      }
-      return false;
+      return conns.some(entry => entry.seat === index && entry.conn.open);
     });
     if (!everyoneHere) return;
     beginMatch();
@@ -4080,17 +4527,16 @@
     pending = false;
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
+    clearPendingSwap();
     syncRole();
 
-    broadcastRoom();
-    sendStateToPlayers();
-
-    if (role) roomOverlayOpen = false;
+    roomOverlayOpen = false;
+    broadcastSnapshot(false);
     render();
 
     showToast(role
       ? '对局开始 · 你执' + (role === 'red' ? '红方' : '蓝方')
-      : '对局开始 · 你留在观战席');
+      : '对局开始 · 你进入观战，棋盘只读');
   }
 
   function abortMatch(reason) {
@@ -4106,9 +4552,10 @@
     pending = false;
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
+    clearPendingSwap();
     roomOverlayOpen = true;
     syncRole();
-    broadcastRoom();
+    broadcastSnapshot(false);
     render();
     if (reason) showToast(reason);
   }
@@ -4116,7 +4563,7 @@
   function exitRoom() {
     if (!room) return;
     if (isHost) {
-      for (const entry of hostConns.values()) {
+      for (const entry of conns) {
         sendTo(entry.conn, { type: 'room-closed', message: '房主关闭了房间' });
       }
     }
@@ -4266,23 +4713,29 @@
     return sendTo(conn, message);
   }
 
-  function broadcastRoom() {
+  function broadcastRoom(includeAvatars = true) {
     if (!isHost || !room) return;
-    const snapshot = publicRoom();
-    for (const entry of hostConns.values()) {
+    const snapshot = publicRoom(includeAvatars);
+    for (const entry of conns) {
       sendTo(entry.conn, { type: 'room', room: snapshot, you: entry.seat });
     }
   }
 
-  function sendStateToPlayers() {
+  // 棋盘状态广播给房间里的每一个人（含观战者），观战端只读。
+  function broadcastState() {
     if (!isHost || !room || !game) return;
     const state = JSON.parse(JSON.stringify(game));
-    for (const entry of hostConns.values()) {
-      const seat = room.seats[entry.seat];
-      if (seat && (seat.color === 'red' || seat.color === 'blue')) {
-        sendTo(entry.conn, { type: 'state', state });
-      }
+    for (const entry of conns) {
+      sendTo(entry.conn, { type: 'state', state });
     }
+  }
+
+  // 玩家列表 + 棋盘状态一起发，保证 8 个客户端看到同一份房间。
+  // 走子频率高时用 includeAvatars=false，避免头像 data URL 反复占用带宽。
+  function broadcastSnapshot(includeAvatars = true) {
+    if (!isHost || !room) return;
+    broadcastRoom(includeAvatars);
+    broadcastState();
   }
 
   function handleRemoteMove(msg, entry) {
@@ -4291,7 +4744,7 @@
     const seat = room.seats[entry.seat];
     const color = seat && (seat.color === 'red' || seat.color === 'blue') ? seat.color : null;
     if (!color) {
-      sendTo(entry.conn, { type: 'error', message: '你在观战席，不能走子' });
+      sendTo(entry.conn, { type: 'error', message: '你在观战席，棋盘是只读的' });
       return;
     }
 
@@ -4299,20 +4752,20 @@
     const to = toPoint(msg.to);
     if (!from || !to || !inside(from.x, from.y) || !inside(to.x, to.y)) {
       sendTo(entry.conn, { type: 'error', message: '走法坐标格式不对' });
-      sendStateToPlayers();
+      broadcastSnapshot(false);
       return;
     }
 
     if (game.turn !== color) {
       sendTo(entry.conn, { type: 'error', message: '还没轮到你' });
-      sendStateToPlayers();
+      broadcastSnapshot(false);
       return;
     }
 
     const result = applyMove(game, from, to);
     if (!result.ok) {
       sendTo(entry.conn, { type: 'error', message: result.error });
-      sendStateToPlayers();
+      broadcastSnapshot(false);
       showToast(result.error);
       return;
     }
@@ -4320,9 +4773,10 @@
     clearSelection();
     clearPending();
     render();
-    sendStateToPlayers();
+    broadcastSnapshot(false);
 
     if (result.winner) {
+      cancelPendingSwapForGameEnd();
       showToast(SIDE_NAME[result.winner] + '获胜 · ' + result.reason);
     }
   }
@@ -4344,7 +4798,7 @@
         const seat = room.seats[entry.seat];
         seat.name = cleanName(msg.name, defaultSeatName(entry.seat));
         seat.avatar = cleanAvatar(msg.avatar) || defaultAvatar(entry.seat);
-        broadcastRoom();
+        broadcastSnapshot();
         render();
         break;
       }
@@ -4356,7 +4810,7 @@
         }
         const avatar = cleanAvatar(msg.avatar);
         if (avatar) seat.avatar = avatar;
-        broadcastRoom();
+        broadcastSnapshot();
         render();
         break;
       }
@@ -4367,7 +4821,7 @@
         if (room.match.length >= 2) break;
         room.match.push(entry.seat);
         if (room.seats[entry.seat]) room.seats[entry.seat].ready = false;
-        broadcastRoom();
+        broadcastSnapshot(false);
         render();
         break;
       }
@@ -4381,7 +4835,7 @@
           for (const i of room.match) {
             if (room.seats[i]) room.seats[i].ready = false;
           }
-          broadcastRoom();
+          broadcastSnapshot(false);
           render();
         }
         break;
@@ -4391,7 +4845,7 @@
         if (room.phase !== 'lobby') break;
         if (!room.match.includes(entry.seat)) break;
         room.seats[entry.seat].ready = msg.ready === true;
-        broadcastRoom();
+        broadcastSnapshot(false);
         render();
         checkStart();
         break;
@@ -4402,7 +4856,7 @@
         if (!text.trim()) break;
         const name = room.seats[entry.seat].name;
         appendChat(text, false, name);
-        for (const other of hostConns.values()) {
+        for (const other of conns) {
           if (other !== entry) sendTo(other.conn, { type: 'chat', text, name });
         }
         break;
@@ -4412,13 +4866,18 @@
         handleRemoteMove(msg, entry);
         break;
 
+      case 'swap-request':
+        openSwapReview(entry.seat, Number(msg.targetSeat));
+        break;
+
       case 'reset':
         if (room.phase === 'playing' && game) {
           game = initialState();
           clearSelection();
           clearPending();
+          clearPendingSwap();
           render();
-          sendStateToPlayers();
+          broadcastSnapshot(false);
           showToast('对方开始了新的一局');
         }
         break;
@@ -4440,13 +4899,11 @@
     syncRole();
 
     if (room.phase === 'playing' && prevPhase !== 'playing') {
-      if (role) {
-        roomOverlayOpen = false;
-        game = null;
-        showToast('对局开始 · 你执' + (role === 'red' ? '红方' : '蓝方'));
-      } else {
-        roomOverlayOpen = true;
-      }
+      roomOverlayOpen = false;
+      game = null;
+      showToast(role
+        ? '对局开始 · 你执' + (role === 'red' ? '红方' : '蓝方')
+        : '对局开始 · 你进入观战，棋盘只读');
     } else if (room.phase === 'lobby' && prevPhase === 'playing') {
       roomOverlayOpen = true;
       showToast('对局中止 · 等待新的对手');
@@ -4488,12 +4945,20 @@
         break;
       }
 
-      case 'room':
-        handleRoomSnapshot(cleanRoom(msg.room), msg.you);
+      case 'room': {
+        const next = cleanRoom(msg.room, room);
+        handleRoomSnapshot(next, msg.you);
         break;
+      }
 
       case 'state':
         applyRemoteState(msg.state);
+        break;
+
+      case 'notice':
+        if (typeof msg.text === 'string' && msg.text) {
+          showToast(msg.text.slice(0, 160));
+        }
         break;
 
       case 'chat': {
@@ -4542,6 +5007,7 @@
     joinTimer = null;
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
+    clearPendingSwap();
 
     const currentConn = conn;
     conn = null;
@@ -4549,9 +5015,10 @@
       try { currentConn.close(); } catch {}
     }
 
-    const entries = Array.from(hostConns.values());
-    hostConns.clear();
+    const entries = conns.slice();
+    conns = [];
     for (const entry of entries) {
+      window.clearTimeout(entry.openTimer);
       try { entry.conn.close(); } catch {}
     }
 
@@ -4617,9 +5084,8 @@
     }
 
     const seatIndex = firstFreeSeat();
-    const key = rawConn.peer || ('guest-' + (++connSeq));
-    const entry = { conn: rawConn, seat: seatIndex, opened: false };
-    hostConns.set(key, entry);
+    const entry = { conn: rawConn, seat: seatIndex, opened: false, openTimer: null };
+    conns.push(entry);
 
     room.seats[seatIndex] = {
       name: defaultSeatName(seatIndex),
@@ -4628,15 +5094,23 @@
       color: null,
     };
 
+    entry.openTimer = window.setTimeout(() => {
+      if (entry.opened) return;
+      try { rawConn.close(); } catch {}
+      removeGuest(entry);
+    }, 15000);
+
     const handleOpen = () => {
       if (entry.opened) return;
       entry.opened = true;
+      window.clearTimeout(entry.openTimer);
+      entry.openTimer = null;
       if (!room || !room.seats[seatIndex]) {
         try { rawConn.close(); } catch {}
         return;
       }
       sendTo(rawConn, { type: 'welcome', seat: seatIndex, room: publicRoom() });
-      broadcastRoom();
+      broadcastSnapshot();
       updateConnectionBadge();
       updateChatState();
       render();
@@ -4647,19 +5121,31 @@
     rawConn.on('data', data => {
       if (peer && isHost && room) handleHostMessage(data, entry);
     });
-    rawConn.on('close', () => removeGuest(key, seatIndex));
+    rawConn.on('close', () => removeGuest(entry));
     rawConn.on('error', () => {});
     if (rawConn.open) handleOpen();
   }
 
-  function removeGuest(key, seatIndex) {
-    const entry = hostConns.get(key);
-    if (!entry) return;
-    hostConns.delete(key);
+  function removeGuest(entry) {
+    const connIndex = conns.indexOf(entry);
+    if (connIndex < 0) return;
+    conns.splice(connIndex, 1);
+    window.clearTimeout(entry.openTimer);
+    entry.openTimer = null;
     if (!room) return;
 
+    const seatIndex = entry.seat;
     const seat = room.seats[seatIndex];
     if (!seat) return;
+
+    if (pendingSwap && (pendingSwap.fromSeat === seatIndex || pendingSwap.targetSeat === seatIndex)) {
+      const otherSeat = pendingSwap.fromSeat === seatIndex ? pendingSwap.targetSeat : pendingSwap.fromSeat;
+      window.clearTimeout(pendingSwap.timer);
+      pendingSwap = null;
+      swapScreenEl.hidden = true;
+      notifySeat(otherSeat, '换人请求已取消：相关玩家离开了房间');
+      showToast('换人请求已取消');
+    }
 
     const name = seat.name || '玩家';
     const hadColor = seat.color === 'red' || seat.color === 'blue';
@@ -4680,7 +5166,7 @@
     }
 
     syncRole();
-    broadcastRoom();
+    broadcastSnapshot();
     updateConnectionBadge();
     updateChatState();
     render();
@@ -4824,6 +5310,11 @@
 
     newPeer.on('close', () => {
       if (peer !== newPeer) return;
+      if (guestCount() > 0) {
+        updateConnectionBadge();
+        showToast('信令服务器已关闭，当前对局仍可继续');
+        return;
+      }
       if (room) failHost('房间连接已关闭，请重新创建');
     });
   }
@@ -5019,8 +5510,9 @@
       clearSelection();
       clearPending();
       render();
-      sendStateToPlayers();
+      broadcastSnapshot(false);
       if (result.winner) {
+        cancelPendingSwapForGameEnd();
         showToast(SIDE_NAME[result.winner] + '获胜 · ' + result.reason);
       }
       return;
@@ -5100,7 +5592,7 @@
       showToast('对局还没开始');
       return;
     }
-    if (!role) {
+    if (!role && !isHost) {
       showToast('观战席不能重开棋盘');
       return;
     }
@@ -5120,8 +5612,9 @@
     game = initialState();
     clearSelection();
     clearPending();
+    clearPendingSwap();
     render();
-    sendStateToPlayers();
+    broadcastSnapshot(false);
     showToast('新的一局，红方先行');
   }
 
@@ -5268,6 +5761,12 @@
   roomButtonEl.addEventListener('click', openRoomOverlay);
   roomBackButtonEl.addEventListener('click', closeRoomOverlay);
   roomExitButtonEl.addEventListener('click', exitRoom);
+
+  swapAcceptButtonEl.addEventListener('click', acceptSwap);
+  swapRejectButtonEl.addEventListener('click', () => rejectSwap('已拒绝换人请求'));
+  swapScreenEl.addEventListener('click', event => {
+    if (event.target === swapScreenEl) rejectSwap('已取消换人请求');
+  });
   roomCodeEl.addEventListener('click', copyCode);
   copyCodeButtonEl.addEventListener('click', copyCode);
 
@@ -5328,7 +5827,11 @@
       closeMobileChat(true);
       return;
     }
-    if (roomOverlayOpen && room && room.phase === 'playing' && (role || isHost)) {
+    if (swapScreenEl && !swapScreenEl.hidden) {
+      rejectSwap('已取消换人请求');
+      return;
+    }
+    if (roomOverlayOpen && room && room.phase === 'playing') {
       closeRoomOverlay();
     }
   });
