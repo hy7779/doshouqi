@@ -2789,7 +2789,7 @@
     </div>
 
     <footer class="room-foot" id="roomFootHint">
-      房主自动坐 0 号位 · 前两位加入对战区的玩家对弈 · 对局中观战者可点击红蓝玩家申请换人，由房主确认
+      房主自动坐 0 号位 · 前两位加入对战区的玩家对弈 · 对局中观战者可点击红蓝玩家申请换人，由被换的玩家确认
     </footer>
   </div>
 </div>
@@ -2845,7 +2845,7 @@
   // 斗兽棋 · 单文件 P2P 房间版
   // 房主是唯一权威端：校验走子、维护 8 人坑位，并把棋盘 + 玩家列表
   // 广播给 conns 数组里的所有人。红蓝玩家可走子，其余玩家只读观战。
-  // 观战者可向正在下棋的玩家发起换人请求，由房主弹窗确认。
+  // 观战者可向正在下棋的玩家发起换人请求，由被换的玩家弹窗确认。
   // ============================================================
 
   /* ===== RULES START ===== */
@@ -3144,7 +3144,8 @@
   let joinTimer = null;
   let pendingTimer = null;
   let toastTimer = null;
-  let pendingSwap = null;        // 房主：待确认的换人请求
+  let pendingSwap = null;        // 房主：等待被换玩家回应的请求
+  let pendingSwapOffer = null;   // 加入者：轮到自己确认的换人请求
 
   let mobileChatOpen = false;
   let chatUnread = false;
@@ -3646,12 +3647,13 @@
     }
 
     if (isHost) {
-      openSwapReview(mySeat, targetSeat);
+      startSwapRequest(mySeat, targetSeat);
       return;
     }
 
+    const target = room.seats[targetSeat];
     if (sendToHost({ type: 'swap-request', targetSeat })) {
-      showToast('换人请求已发送，等待房主确认');
+      showToast('换人请求已发送，等待「' + (target ? target.name : '对方') + '」确认');
     } else {
       showToast('发送失败，请检查连接');
     }
@@ -3671,23 +3673,73 @@
     }
   }
 
+  function sendToSeat(seat, message) {
+    if (!isHost || !message || seat === mySeat) return false;
+    for (const entry of conns) {
+      if (entry.seat === seat && entry.conn.open) {
+        return sendTo(entry.conn, message);
+      }
+    }
+    return false;
+  }
+
+  function showSwapDialog(text) {
+    swapTextEl.textContent = text;
+    closeMobileChat(false);
+    swapAcceptButtonEl.textContent = '同意让位';
+    swapRejectButtonEl.textContent = '拒绝';
+    swapScreenEl.hidden = false;
+    document.body.classList.add('swap-open');
+    swapAcceptButtonEl.focus();
+  }
+
+  function hideSwapDialog() {
+    swapScreenEl.hidden = true;
+    document.body.classList.remove('swap-open');
+  }
+
+  function clearSwapOffer() {
+    pendingSwapOffer = null;
+    hideSwapDialog();
+  }
+
   function clearPendingSwap() {
     if (pendingSwap) {
       window.clearTimeout(pendingSwap.timer);
       pendingSwap = null;
     }
-    swapScreenEl.hidden = true;
-    document.body.classList.remove('swap-open');
+    hideSwapDialog();
+  }
+
+  function cancelSwapRequest(message, notifyRequester = true) {
+    const request = pendingSwap;
+    const text = message || '换人请求已取消';
+    if (!request) {
+      clearPendingSwap();
+      return;
+    }
+    window.clearTimeout(request.timer);
+    pendingSwap = null;
+    hideSwapDialog();
+
+    if (request.targetSeat !== mySeat) {
+      sendToSeat(request.targetSeat, {
+        type: 'swap-cancel',
+        requestId: request.requestId,
+      });
+    }
+    if (notifyRequester && request.fromSeat !== mySeat) {
+      notifySeat(request.fromSeat, text);
+    }
+    showToast(text);
   }
 
   function cancelPendingSwapForGameEnd() {
     if (!pendingSwap) return;
-    const fromSeat = pendingSwap.fromSeat;
-    clearPendingSwap();
-    notifySeat(fromSeat, '对局已经结束，换人请求已取消');
+    cancelSwapRequest('对局已经结束，换人请求已取消');
   }
 
-  function openSwapReview(fromSeat, targetSeat) {
+  function startSwapRequest(fromSeat, targetSeat) {
     if (!isHost || !room) return;
 
     if (!canSwapPair(fromSeat, targetSeat)) {
@@ -3696,17 +3748,17 @@
     }
 
     if (pendingSwap) {
-      notifySeat(fromSeat, '房主正在处理另一个换人请求，请稍后再试');
+      notifySeat(fromSeat, '另一个换人请求正在等待回应，请稍后再试');
       return;
     }
 
     const from = room.seats[fromSeat];
     const target = room.seats[targetSeat];
-    const color = target.color;
     const request = {
+      requestId: 'swap-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
       fromSeat,
       targetSeat,
-      color,
+      color: target.color,
       fromName: from.name,
       targetName: target.name,
       timer: null,
@@ -3715,37 +3767,60 @@
 
     request.timer = window.setTimeout(() => {
       if (pendingSwap !== request) return;
-      rejectSwap('换人请求等待超时，已自动取消');
+      cancelSwapRequest('「' + request.targetName + '」未在规定时间回应，换人请求已取消');
     }, 25000);
 
-    swapTextEl.textContent = '观众「' + from.name + '」请求替换「' + target.name + '」的' +
-      colorLabel(color) + '位置。同意后，「' + from.name + '」接手' + colorLabel(color) +
-      '，「' + target.name + '」转为观战。';
-    closeMobileChat(false);
-    swapScreenEl.hidden = false;
-    document.body.classList.add('swap-open');
-    swapAcceptButtonEl.focus();
-
-    if (targetSeat !== mySeat) {
-      notifySeat(targetSeat, '观众「' + from.name + '」请求与你换位，房主正在确认…');
+    if (targetSeat === mySeat) {
+      showSwapDialog('「' + from.name + '」请求替换你的「' + colorLabel(request.color) + '」位置。同意后，你将转为观战，「' + from.name + '」接手' + colorLabel(request.color) + '。');
+      showToast('有观众请求与你换位，请确认');
+    } else {
+      const sent = sendToSeat(targetSeat, {
+        type: 'swap-offer',
+        requestId: request.requestId,
+        fromSeat,
+        targetSeat,
+        color: request.color,
+        fromName: request.fromName,
+        targetName: request.targetName,
+      });
+      if (!sent) {
+        window.clearTimeout(request.timer);
+        pendingSwap = null;
+        notifySeat(fromSeat, '对方不在线，换人请求已取消');
+        showToast('对方不在线，换人请求已取消');
+        return;
+      }
+      showToast('换人请求已转交「' + target.name + '」，等待对方确认');
     }
+
+    notifySeat(fromSeat, '换人请求已发送，等待「' + target.name + '」确认');
   }
 
-  function rejectSwap(message) {
+  function handleSwapResponse(entry, msg) {
     const request = pendingSwap;
-    const text = message || '房主拒绝了换人请求';
-    if (request) {
-      window.clearTimeout(request.timer);
-      pendingSwap = null;
-      swapScreenEl.hidden = true;
-      document.body.classList.remove('swap-open');
-      if (request.fromSeat !== mySeat) notifySeat(request.fromSeat, text);
-      if (request.targetSeat !== mySeat) notifySeat(request.targetSeat, '换人请求已取消：' + text);
-    } else {
-      swapScreenEl.hidden = true;
-      document.body.classList.remove('swap-open');
+    if (!request) return;
+    if (entry.seat !== request.targetSeat) return;
+    if (String(msg.requestId) !== String(request.requestId)) return;
+
+    window.clearTimeout(request.timer);
+    pendingSwap = null;
+    hideSwapDialog();
+
+    if (msg.accept !== true) {
+      notifySeat(request.fromSeat, '「' + request.targetName + '」拒绝了换人请求');
+      showToast('「' + request.targetName + '」拒绝了换人请求');
+      return;
     }
-    showToast(text);
+
+    if (!canSwapPair(request.fromSeat, request.targetSeat)) {
+      notifySeat(request.fromSeat, '换人失败：对局状态已经变化');
+      notifySeat(request.targetSeat, '换人失败：对局状态已经变化');
+      showToast('换人失败：对局状态已经变化');
+      return;
+    }
+
+    performSwap(request);
+    sendSwapSuccessNotices(request);
   }
 
   function performSwap(request) {
@@ -3770,22 +3845,7 @@
     render();
   }
 
-  function acceptSwap() {
-    const request = pendingSwap;
-    if (!request) return;
-
-    window.clearTimeout(request.timer);
-    pendingSwap = null;
-    swapScreenEl.hidden = true;
-    document.body.classList.remove('swap-open');
-
-    if (!canSwapPair(request.fromSeat, request.targetSeat)) {
-      notifySeat(request.fromSeat, '换人失败：对局状态已经变化');
-      showToast('换人失败：对局状态已经变化');
-      return;
-    }
-
-    performSwap(request);
+  function sendSwapSuccessNotices(request) {
     const color = colorLabel(request.color);
 
     if (mySeat === request.fromSeat) {
@@ -3808,6 +3868,77 @@
       }
       sendTo(entry.conn, { type: 'notice', text });
     }
+  }
+
+  function acceptSwapAsTarget() {
+    const request = pendingSwap;
+    if (!isHost || !request || request.targetSeat !== mySeat) return;
+
+    window.clearTimeout(request.timer);
+    pendingSwap = null;
+    hideSwapDialog();
+
+    if (!canSwapPair(request.fromSeat, request.targetSeat)) {
+      notifySeat(request.fromSeat, '换人失败：对局状态已经变化');
+      showToast('换人失败：对局状态已经变化');
+      return;
+    }
+
+    performSwap(request);
+    sendSwapSuccessNotices(request);
+  }
+
+  function rejectSwapAsTarget() {
+    const request = pendingSwap;
+    if (!isHost || !request || request.targetSeat !== mySeat) return;
+
+    window.clearTimeout(request.timer);
+    pendingSwap = null;
+    hideSwapDialog();
+    notifySeat(request.fromSeat, '「' + request.targetName + '」拒绝了换人请求');
+    showToast('已拒绝换人请求');
+  }
+
+  function confirmSwapAccept() {
+    if (isHost) {
+      if (pendingSwap && pendingSwap.targetSeat === mySeat) acceptSwapAsTarget();
+      else hideSwapDialog();
+      return;
+    }
+
+    const offer = pendingSwapOffer;
+    if (!offer) {
+      hideSwapDialog();
+      return;
+    }
+    pendingSwapOffer = null;
+    hideSwapDialog();
+    if (!sendToHost({ type: 'swap-response', requestId: offer.requestId, accept: true })) {
+      showToast('发送失败，请检查连接');
+      return;
+    }
+    showToast('已同意让位，等待换人执行');
+  }
+
+  function confirmSwapReject() {
+    if (isHost) {
+      if (pendingSwap && pendingSwap.targetSeat === mySeat) rejectSwapAsTarget();
+      else hideSwapDialog();
+      return;
+    }
+
+    const offer = pendingSwapOffer;
+    if (!offer) {
+      hideSwapDialog();
+      return;
+    }
+    pendingSwapOffer = null;
+    hideSwapDialog();
+    if (!sendToHost({ type: 'swap-response', requestId: offer.requestId, accept: false })) {
+      showToast('发送失败，请检查连接');
+      return;
+    }
+    showToast('已拒绝换人请求');
   }
 
   function updateEntryUI() {
@@ -3931,7 +4062,7 @@
     if (room.phase === 'playing') {
       duelNoteEl.textContent = role
         ? '对局进行中 · 点击“返回棋盘”继续对弈。'
-        : '对局进行中 · 棋盘实时同步、观战只读；点击红蓝玩家可请求换人。';
+        : '对局进行中 · 棋盘实时同步、观战只读；点击红蓝玩家可申请换人，由对方确认。';
     } else if (inMatch) {
       duelNoteEl.textContent = '你已进入对决区 · 点击准备，两人都准备后自动开局。';
     } else if (count >= 2) {
@@ -4181,7 +4312,7 @@
       }
       turnPanelEl.classList.add('is-' + game.turn);
       statusTitleEl.textContent = '观战中';
-      statusDetailEl.textContent = SIDE_NAME[game.turn] + '回合 · 棋盘只读，点击红蓝玩家可请求换人';
+      statusDetailEl.textContent = SIDE_NAME[game.turn] + '回合 · 棋盘只读，点击红蓝玩家可申请换人';
       moveNumberEl.textContent = '第 ' + (Math.floor(game.ply / 2) + 1) + ' 回合';
       return;
     }
@@ -4278,7 +4409,7 @@
         return;
       }
       selectionCardEl.innerHTML = '<strong class="' + game.turn + '-text">' +
-        SIDE_NAME[game.turn] + '回合</strong>棋盘只读 · 点击红蓝玩家的「请求换人」可申请换位。';
+        SIDE_NAME[game.turn] + '回合</strong>棋盘只读 · 点击红蓝玩家的「请求换人」可申请换位，由对方确认。';
       return;
     }
 
@@ -4552,7 +4683,8 @@
     pending = false;
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
-    clearPendingSwap();
+    if (pendingSwap) cancelSwapRequest('对局中止，换人请求已取消');
+    else clearPendingSwap();
     roomOverlayOpen = true;
     syncRole();
     broadcastSnapshot(false);
@@ -4673,6 +4805,7 @@
     pending = false;
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
+    if (pendingSwapOffer && next.status !== 'playing') clearSwapOffer();
     updateConnectionBadge();
     render();
 
@@ -4867,7 +5000,11 @@
         break;
 
       case 'swap-request':
-        openSwapReview(entry.seat, Number(msg.targetSeat));
+        startSwapRequest(entry.seat, Number(msg.targetSeat));
+        break;
+
+      case 'swap-response':
+        handleSwapResponse(entry, msg);
         break;
 
       case 'reset':
@@ -4875,7 +5012,8 @@
           game = initialState();
           clearSelection();
           clearPending();
-          clearPendingSwap();
+          if (pendingSwap) cancelSwapRequest('对局重新开始，换人请求已取消');
+          else clearPendingSwap();
           render();
           broadcastSnapshot(false);
           showToast('对方开始了新的一局');
@@ -4897,6 +5035,10 @@
     room = next;
     if (Number.isInteger(you) && you >= 0 && you < SEAT_COUNT) mySeat = you;
     syncRole();
+
+    if (pendingSwapOffer && (room.phase !== 'playing' || !room.seats[mySeat] || !myColor())) {
+      clearSwapOffer();
+    }
 
     if (room.phase === 'playing' && prevPhase !== 'playing') {
       roomOverlayOpen = false;
@@ -4955,6 +5097,42 @@
         applyRemoteState(msg.state);
         break;
 
+      case 'swap-offer': {
+        if (!room || room.phase !== 'playing' || !myColor()) {
+          sendToHost({ type: 'swap-response', requestId: msg.requestId, accept: false });
+          break;
+        }
+        const targetSeat = Number(msg.targetSeat);
+        if (targetSeat !== mySeat) break;
+        if (pendingSwapOffer) break;
+
+        const color = msg.color === 'red' || msg.color === 'blue' ? msg.color : myColor();
+        if (!color) {
+          sendToHost({ type: 'swap-response', requestId: msg.requestId, accept: false });
+          break;
+        }
+
+        pendingSwapOffer = {
+          requestId: String(msg.requestId || ''),
+          fromSeat: Number(msg.fromSeat),
+          targetSeat,
+          color,
+          fromName: cleanName(msg.fromName, '观众'),
+          targetName: cleanName(msg.targetName, mySeatName()),
+        };
+        showSwapDialog('「' + pendingSwapOffer.fromName + '」请求替换你的「' +
+          colorLabel(color) + '」位置。同意后，你将转为观战，「' +
+          pendingSwapOffer.fromName + '」接手' + colorLabel(color) + '。');
+        break;
+      }
+
+      case 'swap-cancel':
+        if (pendingSwapOffer && String(msg.requestId) === pendingSwapOffer.requestId) {
+          clearSwapOffer();
+          showToast('换人请求已取消');
+        }
+        break;
+
       case 'notice':
         if (typeof msg.text === 'string' && msg.text) {
           showToast(msg.text.slice(0, 160));
@@ -5008,6 +5186,7 @@
     window.clearTimeout(pendingTimer);
     pendingTimer = null;
     clearPendingSwap();
+    clearSwapOffer();
 
     const currentConn = conn;
     conn = null;
@@ -5139,12 +5318,25 @@
     if (!seat) return;
 
     if (pendingSwap && (pendingSwap.fromSeat === seatIndex || pendingSwap.targetSeat === seatIndex)) {
-      const otherSeat = pendingSwap.fromSeat === seatIndex ? pendingSwap.targetSeat : pendingSwap.fromSeat;
-      window.clearTimeout(pendingSwap.timer);
+      const request = pendingSwap;
+      window.clearTimeout(request.timer);
       pendingSwap = null;
-      swapScreenEl.hidden = true;
-      notifySeat(otherSeat, '换人请求已取消：相关玩家离开了房间');
-      showToast('换人请求已取消');
+      hideSwapDialog();
+
+      if (request.targetSeat === seatIndex) {
+        if (request.fromSeat !== mySeat) {
+          notifySeat(request.fromSeat, '换人请求已取消：「' + request.targetName + '」离开了房间');
+        }
+        showToast('换人请求已取消');
+      } else {
+        if (request.targetSeat !== mySeat) {
+          sendToSeat(request.targetSeat, {
+            type: 'swap-cancel',
+            requestId: request.requestId,
+          });
+        }
+        showToast('换人请求已取消：申请者离开了房间');
+      }
     }
 
     const name = seat.name || '玩家';
@@ -5612,7 +5804,8 @@
     game = initialState();
     clearSelection();
     clearPending();
-    clearPendingSwap();
+    if (pendingSwap) cancelSwapRequest('对局重新开始，换人请求已取消');
+    else clearPendingSwap();
     render();
     broadcastSnapshot(false);
     showToast('新的一局，红方先行');
@@ -5762,10 +5955,10 @@
   roomBackButtonEl.addEventListener('click', closeRoomOverlay);
   roomExitButtonEl.addEventListener('click', exitRoom);
 
-  swapAcceptButtonEl.addEventListener('click', acceptSwap);
-  swapRejectButtonEl.addEventListener('click', () => rejectSwap('已拒绝换人请求'));
+  swapAcceptButtonEl.addEventListener('click', confirmSwapAccept);
+  swapRejectButtonEl.addEventListener('click', confirmSwapReject);
   swapScreenEl.addEventListener('click', event => {
-    if (event.target === swapScreenEl) rejectSwap('已取消换人请求');
+    if (event.target === swapScreenEl) confirmSwapReject();
   });
   roomCodeEl.addEventListener('click', copyCode);
   copyCodeButtonEl.addEventListener('click', copyCode);
@@ -5828,7 +6021,7 @@
       return;
     }
     if (swapScreenEl && !swapScreenEl.hidden) {
-      rejectSwap('已取消换人请求');
+      confirmSwapReject();
       return;
     }
     if (roomOverlayOpen && room && room.phase === 'playing') {
