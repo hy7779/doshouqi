@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1a17">
 <meta name="color-scheme" content="dark">
 <title>游艺场 · 斗兽棋 / 大富翁</title>
-<meta name="description" content="两个可以离线打开的棋盘小游戏：斗兽棋（联机）与大富翁（同屏轮流）。">
+<meta name="description" content="斗兽棋（联机 / 单机 / 人机三种模式）与大富翁（同屏轮流）两个棋盘小游戏，可离线打开。">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180">
@@ -85,16 +85,16 @@
   <p class="lede">两个棋盘小游戏，选一个开始。装到桌面后，即使断了网也能打开。</p>
 
   <div class="games">
-    <a class="game" href="./webrtc.html" style="--glow:#2f3f6b66">
+    <a class="game" href="./doushouqi.html" style="--glow:#2f3f6b66">
       <div class="glyph">🐘</div>
       <h2>斗兽棋</h2>
-      <p>七列九行，鼠猫狗狼豹虎狮象。开一间房，把邀请码发给朋友，各执一色隔空对弈。</p>
+      <p>七列九行，鼠猫狗狼豹虎狮象。三种下法：和朋友联机、和电脑单机、和 DSH 人机。</p>
       <div class="tags">
         <span class="tag gold">联机</span>
-        <span class="tag">8 人房</span>
-        <span class="tag">P2P</span>
+        <span class="tag">单机</span>
+        <span class="tag">人机</span>
       </div>
-      <span class="go">进入棋盘</span>
+      <span class="go">选择模式</span>
     </a>
 
     <a class="game" href="./monopoly.html" style="--glow:#6b4a2f66">
@@ -115,7 +115,7 @@
     <button class="install" id="installBtn" hidden>安装到桌面</button>
   </div>
 </div>
-<footer>两个游戏都在你的浏览器里跑 · 斗兽棋联机需要联网，大富翁可完全离线</footer>
+<footer>三个斗兽棋模式共用一套规则 · 联机要联网，单机与大富翁可离线</footer>
 
 <script>
   // 注册 Service Worker（PWA 的必要条件：https 或 localhost）
