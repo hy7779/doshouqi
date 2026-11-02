@@ -36,8 +36,10 @@ function shuffledRuns(freeIdx) {
   return runs;
 }
 
-export function generateBoard(map, seed = 1) {
+export function generateBoard(map, seed = 1, land) {
   const rnd = mulberry(seed);
+  const smallPrices = land?.small?.tiers || [2000, 3000, 4000];
+  const bigPrices = land?.big?.prices || [10000];
   const N = map.tiles;
   const corners = cornersOf(map);
   const ring = new Array(N).fill(null);
@@ -86,7 +88,7 @@ export function generateBoard(map, seed = 1) {
         const i = ((raw % N) + N) % N;
         const j = (i + 1) % N;
         if (ring[i] === null && ring[j] === null) {
-          const price = [90000, 120000, 150000][Math.floor(rnd() * 3)];
+          const price = bigPrices[Math.floor(rnd() * bigPrices.length)];
           const plotId = `B${map.land.bigPlots - bigLeft}`;
           ring[i] = { kind: 'big', plotId, price, owner: null, level: 0, type: null };
           ring[j] = { kind: 'big', plotId, price, owner: null, level: 0, type: null };
@@ -107,7 +109,7 @@ export function generateBoard(map, seed = 1) {
       const remain = run.length - k;
       if (remain < 2 || smallLeft <= 0) break;
       const len = Math.min(remain, 2 + Math.floor(rnd() * 4), smallLeft, 5);
-      const price = [18000, 27000, 36000, 48000, 60000][Math.floor(rnd() * 5)];
+      const price = smallPrices[Math.floor(rnd() * smallPrices.length)];
       const streetId = `S${streetSeq++}`;
       for (let i = 0; i < len; i++) {
         ring[run[k + i]] = { kind: 'small', streetId, price, owner: null, level: 0 };
@@ -121,7 +123,7 @@ export function generateBoard(map, seed = 1) {
   if (bigLeft > 0) {
     for (let i = 0; i < N && bigLeft > 0; i++) {
       if (ring[i] === null && ring[(i + 1) % N] === null) {
-        const price = [90000, 120000, 150000][Math.floor(rnd() * 3)];
+        const price = bigPrices[Math.floor(rnd() * bigPrices.length)];
         const plotId = `B${map.land.bigPlots - bigLeft}`;
         ring[i] = { kind: 'big', plotId, price, owner: null, level: 0, type: null };
         ring[(i + 1) % N] = { kind: 'big', plotId, price, owner: null, level: 0, type: null };
@@ -167,6 +169,9 @@ export function generateBoard(map, seed = 1) {
     if (!ring[i]) ring[i] = { kind: 'special', label: 'event' };
     ring[i].index = i;
     ring[i].zone = 'ring';
+    ring[i].barrier = false; // 路障
+    ring[i].mine = false;    // 地雷
+    ring[i].god = null;      // 神仙
   }
 
   // ---- 6. 内圈 30 格 ----
@@ -264,4 +269,14 @@ export function validateBoard(board, map) {
 export function boardFingerprint(board) {
   const pick = (t) => [t.kind, t.label || '', t.price || 0, t.plotId || '', t.streetId || ''].join(':');
   return [board.ring.map(pick).join('|'), board.inner.map((t) => t.label).join('|')].join('#');
+}
+
+/** 环上第 i 格在矩形里的 (col,row)，引擎算范围伤害时用 */
+export function ringCoordOf(state, i) {
+  const { w, h } = state.mapSides;
+  const [c1, c2, c3] = state.board.meta.corners.slice(1);
+  if (i <= c1) return { col: w - 1 - i, row: h - 1 };
+  if (i <= c2) return { col: 0, row: h - 1 - (i - c1) };
+  if (i <= c3) return { col: i - c2, row: 0 };
+  return { col: w - 1, row: i - c3 };
 }

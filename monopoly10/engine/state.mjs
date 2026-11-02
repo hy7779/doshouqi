@@ -39,6 +39,9 @@ export function createPlayer(state, index, name, charId) {
     deposit: pct(ruleset.economy.initialCash, depPct),
     zone: 'ring',
     pos: Math.floor((index * state.board.ring.length) / Math.max(1, state.playerCount)),
+    dir: 1,
+    slow: 0,
+    gods: [],
     innerReturn: null,
     exitPath: null,
     alive: true,
@@ -60,6 +63,7 @@ export function createGame({ ruleset, mapId, names = [], seed = 1, characterIds 
     playerCount: names.length || 2,
     day: 1,
     round: 1,
+    turnCount: 0,
     turn: 0,
     phase: 'preRoll',
     dice: [0, 0],
@@ -70,9 +74,10 @@ export function createGame({ ruleset, mapId, names = [], seed = 1, characterIds 
     players: [],
     log: [],
     stats: { cardsDrawn: 0, cardsPlayed: 0, bankruptcies: 0 },
+    lottery: { pool: 0, tickets: {}, drawn: [], period: 1 },
   };
 
-  state.board = generateBoard(map, seed);
+  state.board = generateBoard(map, seed, ruleset.land);
   state.tiles = state.board.ring; // 常用别名：环上的格子
 
   const pool = [...CHARACTER_LIST];

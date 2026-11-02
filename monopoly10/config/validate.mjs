@@ -64,12 +64,10 @@ export function validateRuleset(ruleset) {
 
   const land = ruleset.land;
   if (land) {
-    const { tiers, rentCurve, chainBonus } = land.small;
-    if (tiers.length !== 5) errors.push('小地皮必须有 5 档地价');
-    if (rentCurve.length !== 5) errors.push('小地皮租金曲线必须有 5 级');
+    const { tiers, chainBonus, rentOfInvestmentPercent } = land.small;
+    if (tiers.length < 1) errors.push('小地皮至少要有一档地价');
     if (chainBonus.length !== 5) errors.push('连锁加成必须有 5 档');
-    if (rentCurve.some((x, i) => i > 0 && x <= rentCurve[i - 1])) errors.push('小地皮租金必须随等级严格递增');
-    if (land.big.rentCurve.length !== 5) errors.push('大地皮租金曲线必须有 5 级');
+    if (!rentOfInvestmentPercent) errors.push('缺少 rentOfInvestmentPercent');
   }
 
   const lott = ruleset.lottery;

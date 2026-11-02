@@ -3,10 +3,14 @@
  * 目前是本地同屏（2–8 人轮流），联机层后接。
  */
 import { createGame } from '../engine/state.mjs';
-import { roll, buy, pass, endTurn, upgrade } from '../engine/engine.mjs';
+import {
+  roll, buy, pass, endTurn, upgrade, useCard, buyCard, closeShop, respondReaction, chooseBigType, cancelBigType, upgradeCostFor,
+  bankDeposit, bankWithdrawAll, leaveBank, buyLottery, leaveLottery, magicDraw, leaveMagic,
+} from '../engine/engine.mjs';
 import { makeRuleset } from '../config/ruleset.mjs';
 import { CHARACTER_LIST } from '../config/characters.mjs';
 import { CARD_LIST } from '../config/cards.mjs';
+import { GOD_MAP } from '../config/gods.mjs';
 import { project, quadOf, pointInQuad, focusOn } from './iso.mjs';
 import { ringTiles, innerTiles, exitTiles, TYPE_COLOR, PLAYER_COLOR } from './scene.mjs';
 
@@ -74,6 +78,21 @@ function drawQuad(quad, fill, stroke, lw = 1) {
   ctx.stroke();
 }
 
+let anim = null;
+let legalTiles = null;
+
+function startAnim(playerId, from, steps) {
+  if (steps <= 0) return;
+  anim = { playerId, from, steps, start: performance.now(), duration: Math.min(720, 110 * steps + 140) };
+  requestAnimationFrame(tick);
+}
+
+function tick() {
+  if (anim && performance.now() - anim.start > anim.duration) anim = null;
+  draw();
+  if (anim) requestAnimationFrame(tick);
+}
+
 function drawBoard() {
   const ring = ringTiles(state, cam);
   const inner = innerTiles(state, cam);
@@ -118,6 +137,11 @@ function drawBoard() {
         ctx.fillText(String(t.tile.price / 1000) + 'k', t.center.x, t.center.y + 9);
       }
     }
+    if (t.tile.god) {
+      ctx.font = `${Math.round(12 * cam.zoom)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(GOD_MAP[t.tile.god]?.emoji || '✨', t.center.x, t.center.y - 14);
+    }
   }
 
   // 内圈
@@ -141,7 +165,30 @@ function drawBoard() {
     ctx.stroke();
   }
 
+  // 选卡时高亮可选目标
+  if (legalTiles) {
+    for (const t of ring) {
+      if (!legalTiles.has(t.i)) continue;
+      drawQuad(t.quad, 'rgba(217,178,106,0.18)', '#f2d28a', 2);
+    }
+  }
+
   // 棋子：先算出每人所在格的中心，再按格子堆叠
+  const centerByIdx = new Map(ring.map((t) => [t.i, t.center]));
+  const animCenter = () => {
+    if (!anim) return null;
+    const el = performance.now() - anim.start;
+    const ratio = Math.min(1, el / anim.duration);
+    const eased = ratio * ratio * (3 - 2 * ratio);
+    const pos = anim.from + anim.steps * eased;
+    const i0 = Math.floor(pos) % state.tiles.length;
+    const i1 = (i0 + 1) % state.tiles.length;
+    const f = pos - Math.floor(pos);
+    const a = centerByIdx.get(i0) || centerByIdx.values().next().value;
+    const b = centerByIdx.get(i1) || centerByIdx.values().next().value;
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+  };
+
   const stacks = new Map();
   for (const p of state.players) {
     if (!p.alive) continue;
@@ -150,6 +197,7 @@ function drawBoard() {
     else if (p.zone === 'inner') center = inner[p.pos]?.center;
     else if (p.zone === 'exit') center = exits.find((t) => t.name === p.exitPath && t.i === Math.max(0, p.pos))?.center;
     if (!center) continue;
+    if (anim && anim.playerId === p.id) center = animCenter() || center;
     const key = `${Math.round(center.x)},${Math.round(center.y)}`;
     if (!stacks.has(key)) stacks.set(key, { center, list: [] });
     stacks.get(key).list.push(p);
@@ -266,6 +314,12 @@ function handleClick(e) {
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
   const hit = ringTiles(state, cam).find((t) => pointInQuad(px, py, t.quad));
   if (!hit) return;
+
+  if (targeting && targeting.kind === 'tile') {
+    applyTargetCard(hit.i);
+    return;
+  }
+
   const t = hit.tile;
   if (t.owner === state.players[state.turn].id && ['postRoll', 'preRoll'].includes(state.phase)) {
     const next = upgrade(state, hit.i);
@@ -279,6 +333,8 @@ function handleClick(e) {
 const $ = (id) => document.getElementById(id);
 
 function afterChange() {
+  if (state.phase !== 'reaction') blamePick = false;
+  if (!targeting) legalTiles = null;
   centerOnCurrent();
   draw();
   renderHUD();
@@ -289,7 +345,7 @@ function renderHUD() {
   const p = state.players[state.turn];
   $('turn').textContent = `${CHARACTER_LIST.find((c) => c.id === p.charId)?.token || ''} ${p.name}`;
   $('cash').textContent = `现金 ¥${p.cash.toLocaleString()} · 存款 ¥${p.deposit.toLocaleString()}`;
-  $('round').textContent = `第 ${state.round} 回合 / 上限 ${state.ruleset.rules.maxRounds}`;
+  $('round').textContent = `第 ${state.round} 轮 / 上限 ${state.ruleset.rules.maxRounds}`;
 
   const dice = state.dice;
   $('dice').textContent = dice[0] ? `${dice[0]} + ${dice[1]}` : '—';
@@ -306,32 +362,178 @@ function renderHUD() {
 
   if (state.phase === 'preRoll') {
     mk('掷骰子', doRoll, 'primary');
+    if (targeting) mk('取消选卡', () => { targeting = null; renderHUD(); draw(); });
   } else if (state.phase === 'awaitBuy') {
     const price = state.pending.price;
     mk(`买下 ¥${price.toLocaleString()}`, () => { state = buy(state); afterChange(); }, 'primary');
     mk('放弃', () => { state = pass(state); afterChange(); });
+  } else if (state.phase === 'shop') {
+    const money = state.players[state.turn].cash;
+    for (const id of state.pending.shop) {
+      const card = CARD_LIST.find((c) => c.id === id);
+      const price = state.ruleset.cards.prices[card.rarity];
+      const b = document.createElement('button');
+      b.textContent = `${card.name} ¥${Math.round(price / 1000)}k`;
+      b.disabled = money < price;
+      b.onclick = () => { state = buyCard(state, id); afterChange(); };
+      acts.appendChild(b);
+    }
+    mk('离开商店', () => { state = closeShop(state); afterChange(); });
+  } else if (state.phase === 'reaction') {
+    const pend = state.pending;
+    const victim = state.players[pend.victimId];
+    for (const id of pend.cards) {
+      const card = CARD_LIST.find((c) => c.id === id);
+      mk(`用「${card.name}」`, () => {
+        if (id === 'blame') {
+          blamePick = true;
+          renderHUD();
+          toast('点击右侧玩家，选择替罪者');
+          return;
+        }
+        state = respondReaction(state, id);
+        afterChange();
+      }, 'primary');
+    }
+    mk('不使用', () => { state = respondReaction(state, null); afterChange(); });
+    $('turn').textContent = `${CHARACTER_LIST.find((c) => c.id === victim.charId)?.token || ''} ${victim.name} · 响应中`;
+  } else if (state.phase === 'bank') {
+    mk('存入一半现金', () => { state = bankDeposit(state, 50); afterChange(); });
+    mk('取出全部', () => { state = bankWithdrawAll(state); afterChange(); });
+    mk('离开', () => { state = leaveBank(state); afterChange(); });
+  } else if (state.phase === 'lottery') {
+    mk('买 1 张', () => { state = buyLottery(state, 1); afterChange(); });
+    mk('买 2 张', () => { state = buyLottery(state, 2); afterChange(); });
+    mk('离开', () => { state = leaveLottery(state); afterChange(); });
+  } else if (state.phase === 'magic') {
+    mk('抽一张卡 ¥20k', () => { state = magicDraw(state); afterChange(); });
+    mk('离开', () => { state = leaveMagic(state); afterChange(); });
+  } else if (state.phase === 'bigType') {
+    const names = { mall: '商业中心', hotel: '大饭店', lab: '研究所', temple: '土地庙', oil: '石油公司', bank2: '证券中心' };
+    const cost = upgradeCostFor(state, state.pending.pos);
+    const afford = p.cash >= cost;
+    for (const [id, label] of Object.entries(names)) {
+      const b = document.createElement('button');
+      b.textContent = `${label} ¥${Math.round(cost / 1000)}k`;
+      b.className = 'primary';
+      b.disabled = !afford;
+      b.onclick = () => { state = chooseBigType(state, id); afterChange(); };
+      acts.appendChild(b);
+    }
+    mk('暂不建造', () => { state = cancelBigType(state); afterChange(); });
+    $('turn').textContent = `${p.name} · 选择建筑类型${afford ? '' : '（现金不足）'}`;
   } else if (state.phase === 'postRoll') {
     mk('结束回合', () => { state = endTurn(state); afterChange(); }, 'primary');
+    if (targeting) mk('取消选卡', () => { targeting = null; renderHUD(); draw(); });
   } else {
     mk('再来一局', newGame, 'primary');
   }
 
-  // 玩家列表
-  $('players').innerHTML = state.players.map((q) => `
-    <div class="pl ${q.id === state.turn ? 'on' : ''} ${q.alive ? '' : 'out'}">
+  // 玩家列表（选目标 / 嫁祸选人模式下可点）
+  $('players').innerHTML = state.players.map((q) => {
+    const pickable = (targeting && targeting.kind === 'player' && targeting.byId !== q.id)
+      || (blamePick && state.pending?.victimId !== q.id);
+    const gods = (q.gods || []).map((g) => GOD_MAP[g.id]?.emoji || '').join('');
+    return `<div class="pl ${q.id === state.turn ? 'on' : ''} ${q.alive ? '' : 'out'} ${pickable ? 'targetable' : ''}"
+         data-pid="${q.id}">
       <span class="dot" style="background:${PLAYER_COLOR[q.id % PLAYER_COLOR.length]}"></span>
-      <span class="nm">${CHARACTER_LIST.find((c) => c.id === q.charId)?.token || ''} ${q.name}</span>
+      <span class="nm">${CHARACTER_LIST.find((c) => c.id === q.charId)?.token || ''} ${q.name}${gods ? ' ' + gods : ''}</span>
       <span class="money">¥${q.cash.toLocaleString()}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  $('players').querySelectorAll('[data-pid]').forEach((row) => {
+    row.onclick = () => {
+      const pid = Number(row.dataset.pid);
+      if (blamePick && state.phase === 'reaction') {
+        state = respondReaction(state, 'blame', pid);
+        blamePick = false;
+        afterChange();
+        return;
+      }
+      if (!targeting || targeting.kind !== 'player') return;
+      if (pid === targeting.byId) return;
+      applyTargetCard(pid);
+    };
+  });
 
   // 手牌
-  $('hand').innerHTML = p.hand.length
-    ? p.hand.map((id) => `<span class="card">${CARD_LIST.find((c) => c.id === id)?.name || id}</span>`).join('')
-    : '<span class="empty">手上没有卡</span>';
+  const hand = $('hand');
+  hand.innerHTML = '';
+  if (!p.hand.length) hand.innerHTML = '<span class="empty">手上没有卡</span>';
+  for (const id of p.hand) {
+    const card = CARD_LIST.find((c) => c.id === id);
+    const b = document.createElement('button');
+    b.className = 'card';
+    b.textContent = card ? card.name : id;
+    b.title = card ? card.desc : '';
+    b.onclick = () => startTargeting(id);
+    hand.appendChild(b);
+  }
+
+  // 提示条
+  const hint = $('hint');
+  if (targeting) {
+    hint.textContent = targeting.kind === 'tile' ? '点击棋盘上的目标格子' : '点击右侧玩家头像';
+    hint.classList.add('on');
+  } else {
+    hint.textContent = state.phase === 'shop' ? '商店：点卡片购买，也可以直接离开' : '';
+    hint.classList.toggle('on', state.phase === 'shop');
+  }
 
   // 日志
   $('log').innerHTML = state.log.slice(-6).map((l) => `<div>${l.text}</div>`).join('');
   $('log').scrollTop = $('log').scrollHeight;
+}
+
+/* ---------------- 卡片使用 ---------------- */
+
+const TILE_TARGET = new Set(['placeBarrier', 'placeMine', 'areaDamage', 'forceBuy', 'rebuildProperty', 'demolish', 'swapProperty', 'sealStreet', 'raisePrice', 'upgradeOwn']);
+const PLAYER_TARGET = new Set(['freeze', 'reverse', 'turtle', 'jail', 'tax', 'stealCard', 'sleepwalk', 'hibernate', 'averageCash']);
+let targeting = null;
+let blamePick = false;
+
+function startTargeting(cardId) {
+  const card = CARD_LIST.find((c) => c.id === cardId);
+  if (!card) return;
+  if (card.timing !== 'active') { toast('这张卡只能在被结算时触发'); return; }
+  if (!['preRoll', 'postRoll'].includes(state.phase)) return;
+
+  const type = card.effect.type;
+  if (TILE_TARGET.has(type)) {
+    targeting = { cardId, kind: 'tile', byId: state.turn };
+    const p = state.players[state.turn];
+    legalTiles = new Set();
+    if (type === 'placeBarrier' || type === 'placeMine') {
+      const range = (card.effect.range || 15) + 3; // 上限，实际由引擎再校验
+      for (let k = 1; k <= range; k++) {
+        legalTiles.add(((p.pos + (p.dir || 1) * k) % state.tiles.length + state.tiles.length) % state.tiles.length);
+      }
+      toast(`点击前方 ${range} 格内的目标`);
+    } else {
+      for (let i = 0; i < state.tiles.length; i++) legalTiles.add(i);
+      toast('点击目标格子');
+    }
+    draw();
+  } else if (PLAYER_TARGET.has(type)) {
+    targeting = { cardId, kind: 'player', byId: state.turn };
+    toast('点击右侧玩家头像');
+  } else {
+    const next = useCard(state, cardId);
+    if (next === state) { toast('现在不能用这张卡'); return; }
+    state = next;
+    afterChange();
+  }
+  renderHUD();
+}
+
+function applyTargetCard(target) {
+  if (!targeting) return;
+  const next = useCard(state, targeting.cardId, target);
+  if (next === state) { toast('这个目标不合法'); return; }
+  state = next;
+  targeting = null;
+  legalTiles = null;
+  afterChange();
 }
 
 let rolling = false;
@@ -339,12 +541,20 @@ function doRoll() {
   if (rolling) return;
   rolling = true;
   const el = $('dice');
+  const moverId = state.turn;
+  const from = state.players[moverId].pos;
+  const fromZone = state.players[moverId].zone;
   let n = 0;
   const timer = setInterval(() => {
     el.textContent = `${1 + Math.floor(Math.random() * 6)} + ${1 + Math.floor(Math.random() * 6)}`;
     if (++n > 6) {
       clearInterval(timer);
       state = roll(state);
+      const mover = state.players[moverId];
+      if (fromZone === 'ring' && mover.zone === 'ring') {
+        const steps = ((mover.pos - from) % state.tiles.length + state.tiles.length) % state.tiles.length;
+        startAnim(moverId, from, steps);
+      }
       rolling = false;
       afterChange();
     }

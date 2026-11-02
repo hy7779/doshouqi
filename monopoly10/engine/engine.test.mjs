@@ -3,7 +3,7 @@
  * 运行：node engine.test.mjs
  */
 import { createGame } from './state.mjs';
-import { roll, buy, pass, endTurn, upgrade, rentFor, inflationBp } from './engine.mjs';
+import { roll, buy, pass, endTurn, upgrade, rentFor, inflationBp, closeShop, buyCard, respondReaction, leaveBank, leaveLottery, leaveMagic, chooseBigType } from './engine.mjs';
 import { makeRuleset } from '../config/ruleset.mjs';
 import { mulDivRound, pct } from './money.mjs';
 
@@ -42,6 +42,17 @@ function playGame(seed, players = 4, mapId = 'medium') {
     } else if (state.phase === 'awaitBuy') {
       const p = state.players[state.turn];
       state = p.cash >= state.tiles[p.pos].price + 20000 ? buy(state) : pass(state);
+    } else if (['bank','lottery','magic'].includes(state.phase)) {
+      state = state.phase === 'bank' ? leaveBank(state) : state.phase === 'lottery' ? leaveLottery(state) : leaveMagic(state);
+    } else if (state.phase === 'reaction') {
+      const cards = state.pending.cards;
+      state = respondReaction(state, policy() < 0.4 ? cards[0] : null);
+    } else if (state.phase === 'shop') {
+      const p = state.players[state.turn];
+      const affordable = state.pending.shop.find((id) => p.cash >= 12000 && p.hand.length < 8);
+      state = affordable && policy() < 0.5 ? buyCard(state, affordable) : closeShop(state);
+    } else if (state.phase === 'bigType') {
+      state = chooseBigType(state, ['mall', 'hotel', 'lab', 'temple', 'oil', 'bank2'][Math.floor(policy() * 6)]);
     } else if (state.phase === 'postRoll') {
       const p = state.players[state.turn];
       const own = state.tiles.map((t, i) => ({ t, i })).filter(({ t }) => t.owner === p.id && t.level < 5);
@@ -102,13 +113,13 @@ console.log('3) 租金公式');
   }
   t.owner = 0; t.level = 1;
   s.players[0].charId = 'wolf'; // 不提供租金加成
-  const expect1 = pct(t.price, 25);
+  const expect1 = pct(t.price, 40);
   const got1 = rentFor(s, idx, s.players[1]);
   console.log(`  ${t.price} 的 1 级租金：期望 ${expect1} 实得 ${got1}`, got1 === expect1 ? '✓' : '✗');
   if (got1 !== expect1) fail('1 级租金不符');
 
   t.level = 5;
-  const expect5 = pct(t.price, 110);
+  const expect5 = pct(t.price * 15, 40); // 5 级累计投入 = 15 倍地价
   const got5 = rentFor(s, idx, s.players[1]);
   console.log(`  5 级租金：期望 ${expect5} 实得 ${got5}`, got5 === expect5 ? '✓' : '✗');
   if (got5 !== expect5) fail('5 级租金不符');
@@ -143,6 +154,11 @@ console.log('4) 回合上限');
   while (s.phase !== 'ended' && n++ < 5000) {
     if (s.phase === 'preRoll') s = roll(s);
     else if (s.phase === 'awaitBuy') s = pass(s);
+    else if (s.phase === 'bank') s = leaveBank(s);
+    else if (s.phase === 'lottery') s = leaveLottery(s);
+    else if (s.phase === 'magic') s = leaveMagic(s);
+    else if (s.phase === 'shop') s = closeShop(s);
+    else if (s.phase === 'reaction') s = respondReaction(s, null);
     else s = endTurn(s);
   }
   console.log(`  上限 5 回合 → 结束于第 ${s.round} 回合`, s.phase === 'ended' && s.round <= 6 ? '✓' : '✗');

@@ -62,22 +62,23 @@ export const DEFAULT_RULESET = {
     salary: 45000,            // 经过起点、每圈工资（未乘物价）
     hospitalFeePerDay: 7500,  // 住院/入狱每天医疗费
     jailFine: 0,              // 保释金（暂未启用，留位）
+    wageTileBase: 3000,       // 工资格基准
+    wageTileGrowthPercent: 10,// 每过一天，工资格 +10%
   },
 
   land: {
     small: {
-      // 五档地价，按环上位置从外到内递增
-      tiers: [18000, 27000, 36000, 48000, 60000],
-      upgradeRate: 60,                              // 每级升级费 = 地价 × 60%
-      rentCurve: [25, 42, 62, 85, 110],             // 1–5 级租金 = 地价 × 百分比
+      // 三档地价
+      tiers: [2000, 3000, 4000],
+      upgradeRate: 60,                              // 兼容旧字段，实际升级费 = 目标级数 × 地价
+      rentOfInvestmentPercent: 40,                  // 租金 = 累计投入 × 40%
       chainBonus: [0, 10, 20, 30, 40],              // 连 1/2/3/4/5 块时的加成百分比
     },
     big: {
       // 大地皮占 2 格，走到任一格都可操作
-      prices: [90000, 120000, 150000],
+      prices: [10000],
       upgradeRate: 50,
-      rentCurve: [20, 32, 48, 65, 85],              // 1–5 级
-      level0Rent: 5,                                // 0 级（只买地未建）的租金百分比
+      rentOfInvestmentPercent: 40,
       maxLevel: 5,
     },
   },
@@ -93,22 +94,23 @@ export const DEFAULT_RULESET = {
   },
 
   cards: {
-    prices: { common: 12000, rare: 37500, legend: 75000 },
+    prices: { common: 2000, rare: 5000, legend: 8000 },
     shop: { count: 12, weights: [60, 30, 10] },   // 普通/稀有/传说 抽取权重
     hand: { startCards: 0, limit: 8 },
   },
 
   lottery: {
-    ticketPrice: 15000,
+    ticketPrice: 500,
     numbers: 31,                                   // 号码池大小
     winners: { first: 1, second: 3, third: 5 },    // 各奖项的中奖号码个数
     poolGrowthPerRound: 7500,                      // 奖池每回合自然增长
     split: [50, 30, 20],                           // 一二三等奖的奖池占比
+    payoutPercent: 30,                             // 每期只拿出奖池的 30% 发奖，其余滚存
   },
 
   bank: {
-    dailyRateBp: 20,   // 万分比：20 = 0.20%/天
-    cycleDays: 18,     // 每 18 天结一次息（单利，天累加）
+    interestPercent: 10,   // 每次结算：存款余额 × 10%
+    cycleTurnsPerPlayer: 3,// 每「人数 × 3」个回合结算一次
   },
 
   inflation: {

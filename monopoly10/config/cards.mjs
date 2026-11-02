@@ -132,8 +132,8 @@ export const CARD_LIST = [
   /* ---------------- 防御与反制 ---------------- */
   {
     id: 'free', name: '免费卡', rarity: 'rare', timing: 'reactive', target: 'self', minRound: 0,
-    effect: { type: 'waiveLoss', threshold: 50000, once: 1 },
-    desc: '单次损失超过 5 万时，可免除一次。',
+    effect: { type: 'waiveLoss', threshold: 5000, once: 1 },
+    desc: '单次损失超过 5,000 时，可免除一次。',
   },
   {
     id: 'pardon', name: '免罪卡', rarity: 'rare', timing: 'reactive', target: 'self', minRound: 0,
@@ -147,8 +147,8 @@ export const CARD_LIST = [
   },
   {
     id: 'blame', name: '嫁祸卡', rarity: 'legend', timing: 'reactive', target: 'other', minRound: 0,
-    effect: { type: 'shiftPunishment', jailThreshold: 1, lossThreshold: 100000 },
-    desc: '入狱或损失超过 10 万时，找人替你承担。',
+    effect: { type: 'shiftPunishment', jailThreshold: 1, lossThreshold: 10000 },
+    desc: '入狱或损失超过 1 万时，找人替你承担。',
   },
 
   /* ---------------- 其他功能 ---------------- */
