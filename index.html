@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1a17">
+<meta name="color-scheme" content="dark">
+<title>游艺场 · 斗兽棋 / 大富翁</title>
+<meta name="description" content="两个可以离线打开的棋盘小游戏：斗兽棋（联机）与大富翁（同屏轮流）。">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="游艺场">
+<style>
+  :root {
+    --ink: #ece4d4; --ink-dim: #a89b86; --bg: #0f1a17;
+    --line: #2c4038; --gold: #d9b26a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 600px at 85% -10%, #1e342c 0%, transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, #1a2a35 0%, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.6;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+  .shell { width: min(980px, 100%); margin: 0 auto; padding: 48px 20px 32px; flex: 1; }
+  .kicker { font-size: 12px; letter-spacing: .38em; color: var(--ink-dim); text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 5vw, 42px); margin: 10px 0 6px; letter-spacing: .08em; font-weight: 600; }
+  .lede { color: #bdb09a; margin: 0 0 34px; max-width: 34em; font-size: 15px; }
+
+  .games { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 720px) { .games { grid-template-columns: 1fr; } }
+
+  .game {
+    position: relative; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 20px;
+    background: linear-gradient(165deg, #182a23, #121e1a);
+    padding: 22px; min-height: 232px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .game::after {
+    content: ""; position: absolute; inset: -40% -20% auto auto;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, var(--glow) 0%, transparent 65%);
+    opacity: .5; pointer-events: none;
+  }
+  .game:hover { transform: translateY(-3px); border-color: #4a6a5c; box-shadow: 0 26px 50px -32px #000; }
+  .game .glyph { font-size: 34px; line-height: 1; }
+  .game h2 { margin: 4px 0 0; font-size: 21px; letter-spacing: .06em; font-weight: 600; }
+  .game p { margin: 0; color: #b3a692; font-size: 13.5px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+  .tag { font-size: 11px; padding: 3px 9px; border-radius: 99px; border: 1px solid #35503f; color: #9fb3a5; }
+  .tag.gold { color: var(--gold); border-color: #6b5733; }
+  .go { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gold); margin-top: 8px; }
+  .go::after { content: "→"; transition: transform .18s ease; }
+  .game:hover .go::after { transform: translateX(4px); }
+
+  .foot { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .status { font-size: 12px; color: #7e9187; }
+  .status b { color: #9fb3a5; font-weight: 500; }
+  .install {
+    border: 1px solid #6b5733; color: var(--gold); background: #1c2b24;
+    padding: 9px 16px; border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer;
+    transition: background .15s ease, transform .12s ease;
+  }
+  .install:hover { background: #22362c; }
+  .install:active { transform: scale(.97); }
+  .install[hidden] { display: none; }
+  footer { text-align: center; font-size: 11.5px; color: #63756b; padding: 20px; letter-spacing: .06em; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="kicker">Playground</div>
+  <h1>游艺场</h1>
+  <p class="lede">两个棋盘小游戏，选一个开始。装到桌面后，即使断了网也能打开。</p>
+
+  <div class="games">
+    <a class="game" href="./webrtc.html" style="--glow:#2f3f6b66">
+      <div class="glyph">🐘</div>
+      <h2>斗兽棋</h2>
+      <p>七列九行，鼠猫狗狼豹虎狮象。开一间房，把邀请码发给朋友，各执一色隔空对弈。</p>
+      <div class="tags">
+        <span class="tag gold">联机</span>
+        <span class="tag">8 人房</span>
+        <span class="tag">P2P</span>
+      </div>
+      <span class="go">进入棋盘</span>
+    </a>
+
+    <a class="game" href="./monopoly.html" style="--glow:#6b4a2f66">
+      <div class="glyph">🎲</div>
+      <h2>大富翁</h2>
+      <p>绕城一圈买地收租，集齐同色盖房，最后站着的人赢。2–4 人同一台设备轮流玩。</p>
+      <div class="tags">
+        <span class="tag gold">同屏</span>
+        <span class="tag">2–4 人</span>
+        <span class="tag">有存档</span>
+      </div>
+      <span class="go">进入牌桌</span>
+    </a>
+  </div>
+
+  <div class="foot">
+    <div class="status" id="status">正在检查安装条件…</div>
+    <button class="install" id="installBtn" hidden>安装到桌面</button>
+  </div>
+</div>
+<footer>两个游戏都在你的浏览器里跑 · 斗兽棋联机需要联网，大富翁可完全离线</footer>
+
+<script>
+  // 注册 Service Worker（PWA 的必要条件：https 或 localhost）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').then(function () {
+        var el = document.getElementById('status');
+        if (el && !window.__installPrompt) el.innerHTML = '<b>已可离线打开</b> · 浏览器没给安装入口时，可用菜单「添加到主屏幕」';
+      }).catch(function () {
+        var el = document.getElementById('status');
+        if (el) el.textContent = '离线缓存未启用（需要 https 或 localhost）';
+      });
+    });
+  } else {
+    document.getElementById('status').textContent = '这个浏览器不支持离线缓存';
+  }
+
+  var deferredPrompt = null;
+  var btn = document.getElementById('installBtn');
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    window.__installPrompt = true;
+    btn.hidden = false;
+    document.getElementById('status').innerHTML = '<b>可以安装</b> · 装到桌面后像 App 一样打开';
+  });
+  btn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function () { deferredPrompt = null; btn.hidden = true; });
+  });
+  window.addEventListener('appinstalled', function () {
+    btn.hidden = true;
+    document.getElementById('status').innerHTML = '<b>已安装</b> · 从桌面图标打开即可';
+  });
+</script>
+</body>
+</html>
