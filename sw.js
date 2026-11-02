@@ -1,5 +1,5 @@
 /* 游艺场 Service Worker：外壳预缓存 + 导航兜底 */
-const VERSION = 'youyi-v3';
+const VERSION = 'youyi-v4';
 const CACHE = `youyi-${VERSION}`;
 
 const SHELL = [
@@ -13,6 +13,8 @@ const SHELL = [
   './icon-512.png',
   './icon-maskable-512.png',
   './webrtc.html',
+  './doushouqi.html',
+  './offline/ai-local.html',
 ];
 
 self.addEventListener('install', (event) => {
