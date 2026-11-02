@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12211d">
+<meta name="color-scheme" content="dark">
+<title>大富翁 · 一起买下这座城</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="大富翁">
+<style>
+  :root {
+    --ink: #ece4d4;
+    --ink-dim: #a89b86;
+    --bg: #0f1a17;
+    --panel: #16241f;
+    --panel-2: #1d2f28;
+    --line: #2c4038;
+    --gold: #d9b26a;
+    --red: #c9534a;
+    --blue: #4a8fc9;
+    --green: #55a06b;
+    --yellow: #d4b03c;
+    --paper: #f2e4c8;
+    --cell: 100%;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1100px 700px at 80% -10%, #1b2f28 0%, transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, #1a2a35 0%, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100%;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+  .wrap {
+    max-width: 1240px; margin: 0 auto; padding: 16px 16px 40px;
+    display: grid; gap: 16px;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-areas: "head head" "board side";
+    align-items: start;
+  }
+  header { grid-area: head; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { margin: 0; font-size: 20px; letter-spacing: .18em; font-weight: 600; }
+  .brand span { font-size: 12px; color: var(--ink-dim); letter-spacing: .12em; }
+  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .btn:hover { border-color: #4a6a5c; }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: linear-gradient(180deg, #d9b26a, #b8904c); color: #221a0d; border-color: #e5c98f; font-weight: 600; }
+  .btn.ghost { background: transparent; }
+  .btn:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+  .btn.danger { border-color: #6b3630; color: #e5a79f; }
+
+  /* ---------- 棋盘 ---------- */
+  .board-wrap { grid-area: board; position: relative; }
+  .board {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    grid-template-rows: repeat(11, 1fr);
+    gap: 2px;
+    padding: 2px;
+    border-radius: 18px;
+    background: linear-gradient(160deg, #223a31, #16211d 70%);
+    box-shadow: 0 24px 60px -30px #000, inset 0 1px 0 #3d5c4e;
+    touch-action: manipulation;
+  }
+  .tile {
+    position: relative;
+    background: #1b2a24;
+    border: 1px solid #2b4137;
+    border-radius: 5px;
+    padding: 3px 3px 2px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background .15s ease, box-shadow .15s ease;
+    min-width: 0;
+  }
+  .tile:hover { background: #22362d; }
+  .tile.corner { background: #1f3129; }
+  .tile.landed { box-shadow: 0 0 0 2px var(--gold), 0 0 22px -4px #d9b26a; z-index: 4; }
+  .tile.mine { background: #23392f; }
+  .tile .band { height: 5px; border-radius: 2px; background: var(--c, #2c4038); margin-bottom: 2px; flex: none; }
+  .tile .tname { font-size: 9px; line-height: 1.15; letter-spacing: .02em; color: #e9e2d2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
+  .tile .tsub { font-size: 8px; color: var(--ink-dim); line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tile .tprice { margin-top: auto; font-size: 8px; color: #b9a98a; font-variant-numeric: tabular-nums; flex: none; }
+  .tile .houses { font-size: 7px; letter-spacing: -1px; line-height: 1; height: 8px; flex: none; }
+  .tile .owner-dot {
+    position: absolute; right: 2px; top: 8px; width: 6px; height: 6px; border-radius: 50%;
+    box-shadow: 0 0 0 1px #000a;
+  }
+  .tile.owned { border-color: var(--oc, #2b4137); }
+  .tokens {
+    position: absolute; inset: auto 1px 1px 1px;
+    display: flex; flex-wrap: wrap; gap: 1px; justify-content: flex-start;
+    pointer-events: none;
+  }
+  .tok { font-size: 10px; line-height: 1; filter: drop-shadow(0 1px 1px #000a); transition: transform .18s ease; }
+  .tok.active { transform: scale(1.25); }
+
+  /* 中央区 */
+  .center {
+    grid-column: 2 / 11; grid-row: 2 / 11;
+    background:
+      radial-gradient(circle at 50% 20%, #26443a 0%, transparent 65%),
+      linear-gradient(160deg, #1a2c25, #131f1b);
+    border: 1px solid #2b4137;
+    border-radius: 12px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px; padding: 12px; text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .center .watermark {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: clamp(48px, 12vw, 120px); letter-spacing: .1em;
+    color: #ffffff06; font-weight: 700; pointer-events: none; user-select: none;
+  }
+  .turnline { font-size: 12px; color: var(--ink-dim); letter-spacing: .1em; }
+  .turnname { font-size: clamp(16px, 2.4vw, 22px); font-weight: 600; color: var(--gold); letter-spacing: .08em; }
+  .dice { display: flex; gap: 10px; }
+  .die {
+    width: clamp(38px, 5vw, 56px); height: clamp(38px, 5vw, 56px);
+    border-radius: 12px; background: linear-gradient(160deg, #f6ecd8, #d9cbb0);
+    color: #221a0d; display: grid; place-items: center;
+    font-size: clamp(22px, 3vw, 32px); font-weight: 700;
+    box-shadow: 0 6px 14px -6px #000, inset 0 -3px 6px #0002;
+    transition: transform .1s ease;
+  }
+  .die.rolling { animation: shake .28s infinite; }
+  @keyframes shake {
+    0%,100% { transform: rotate(0) translateY(0); }
+    25% { transform: rotate(-8deg) translateY(-3px); }
+    75% { transform: rotate(8deg) translateY(2px); }
+  }
+  .center-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .prompt {
+    background: #0e1a16cc; border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; max-width: 340px; display: grid; gap: 8px;
+  }
+  .prompt p { margin: 0; font-size: 13px; }
+  .prompt .row { display: flex; gap: 8px; justify-content: center; }
+
+  /* 侧栏 */
+  .side { grid-area: side; display: grid; gap: 14px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px;
+  }
+  .card h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: .18em; color: var(--ink-dim); font-weight: 500; }
+  .players { display: grid; gap: 8px; }
+  .pl {
+    display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center;
+    padding: 7px 8px; border-radius: 10px; background: #17251f; border: 1px solid transparent;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .pl.active { border-color: var(--gold); background: #1d2f27; }
+  .pl.out { opacity: .42; }
+  .pl .avatar { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; background: #0e1a16; }
+  .pl .nm { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .pl .meta { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .pl .cash { font-size: 13px; font-variant-numeric: tabular-nums; color: #e8dcc2; text-align: right; }
+  .pl .cash small { display: block; font-size: 10px; color: var(--ink-dim); }
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 99px; background: #2a3d34; color: var(--ink-dim); margin-left: 4px; }
+  .log { max-height: 240px; overflow: auto; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .log div { padding: 3px 0; border-bottom: 1px dashed #23362e; color: #cfc4ad; }
+  .log div:last-child { border: none; }
+  .log .hl { color: var(--gold); }
+  .props { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; padding: 4px 8px; border-radius: 8px; background: #17251f; border: 1px solid var(--line); }
+  .chip b { color: var(--gold); font-weight: 600; }
+
+  /* 弹层 */
+  .overlay {
+    position: fixed; inset: 0; background: #08120fd9; backdrop-filter: blur(4px);
+    display: grid; place-items: center; padding: 16px; z-index: 50;
+  }
+  .overlay[hidden] { display: none; }
+  .modal {
+    width: min(420px, 100%); background: #16241f; border: 1px solid #35503f;
+    border-radius: 16px; padding: 18px; display: grid; gap: 14px;
+    box-shadow: 0 30px 80px -30px #000;
+  }
+  .modal h3 { margin: 0; font-size: 16px; letter-spacing: .06em; }
+  .modal p { margin: 0; font-size: 13px; color: #cfc4ad; }
+  .rent { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .rent td { padding: 4px 6px; border-bottom: 1px dashed #2a3f35; }
+  .rent td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .rent tr.cur { color: var(--gold); }
+  .field { display: grid; gap: 6px; }
+  .field label { font-size: 12px; color: var(--ink-dim); }
+  .field input {
+    background: #0f1a16; border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; color: var(--ink); font: inherit;
+  }
+  .counts { display: flex; gap: 8px; }
+  .counts button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: #17251f; }
+  .counts button.on { border-color: var(--gold); color: var(--gold); background: #1d2f27; }
+  .names { display: grid; gap: 8px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(10px);
+    background: #20342b; border: 1px solid #3b5546; color: var(--ink);
+    padding: 9px 16px; border-radius: 999px; font-size: 13px; opacity: 0;
+    transition: opacity .2s ease, transform .2s ease; pointer-events: none; z-index: 80;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 880px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "board" "side"; padding: 10px 10px 30px; }
+    .tile .tname { font-size: 8px; }
+    .tile .tprice, .tile .tsub { display: none; }
+    .tile .band { height: 4px; }
+    .log { max-height: 160px; }
+  }
+  @media (max-width: 480px) {
+    .brand h1 { font-size: 17px; }
+    .center { gap: 6px; padding: 8px; }
+    .die { border-radius: 9px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>大富翁</h1>
+      <span id="roundInfo">第 1 回合</span>
+    </div>
+    <div class="head-actions">
+      <button class="btn ghost" id="btnRules">规则</button>
+      <button class="btn ghost" id="btnSound" aria-pressed="true">🔔</button>
+      <button class="btn danger" id="btnNew">新开一局</button>
+    </div>
+  </header>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="center" id="center">
+        <div class="watermark">富</div>
+        <div class="turnline" id="turnLine">准备开始</div>
+        <div class="turnname" id="turnName">—</div>
+        <div class="dice">
+          <div class="die" id="die1">?</div>
+          <div class="die" id="die2">?</div>
+        </div>
+        <div id="promptBox"></div>
+        <div class="center-actions" id="actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="side">
+    <section class="card">
+      <h2>玩家</h2>
+      <div class="players" id="players"></div>
+    </section>
+    <section class="card">
+      <h2>我的地产 <span id="myCount" style="color:#6f8579"></span></h2>
+      <div class="props" id="myProps"></div>
+    </section>
+    <section class="card">
+      <h2>动态</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </aside>
+</div>
+
+<!-- 开局设置 -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <h3>开一局大富翁</h3>
+    <p>同一台设备轮流操作。每人 1,500 元，绕城一圈领 200 元。</p>
+    <div class="field">
+      <label>玩家人数</label>
+      <div class="counts" id="countBtns">
+        <button data-n="2" class="on">2 人</button>
+        <button data-n="3">3 人</button>
+        <button data-n="4">4 人</button>
+      </div>
+    </div>
+    <div class="names" id="nameFields"></div>
+    <div class="field">
+      <label>回合上限（到点按总资产结算）</label>
+      <div class="counts" id="roundBtns">
+        <button data-r="40">40</button>
+        <button data-r="60">60</button>
+        <button data-r="80" class="on">80</button>
+        <button data-r="120">120</button>
+      </div>
+    </div>
+    <button class="btn primary" id="btnStart">开始游戏</button>
+  </div>
+</div>
+
+<!-- 地产详情 -->
+<div class="overlay" id="tileOverlay" hidden>
+  <div class="modal" id="tileModal"></div>
+</div>
+
+<!-- 规则 -->
+<div class="overlay" id="rulesOverlay" hidden>
+  <div class="modal">
+    <h3>规则速记</h3>
+    <p>· 掷骰前进，停在无主地产可以买下；停在别人的地产要付租金。</p>
+    <p>· 集齐同色一组（棕/青/粉/橙/红/黄/绿/蓝），空地的租金翻倍，并且可以盖房。</p>
+    <p>· 盖房要一组均匀升级（同级之间最多差 1 级），最高 5 级＝旅馆；拆房退回一半造价。</p>
+    <p>· 车站：拥有 1/2/3/4 座，租金 25/50/100/200。公用事业：按骰点 4 倍计租，两座齐全则 10 倍。</p>
+    <p>· 连掷三次对子直接进监狱；在狱中可付 50 元保释、用出狱卡，或掷出对子出狱。</p>
+    <p>· 付不起钱时会自动拆房抵债，仍不够就破产，地产转给债主。</p>
+    <p>· 只剩一人，或到达回合上限（按总资产）时结束。</p>
+    <div class="row" style="display:flex;justify-content:flex-end"><button class="btn" id="btnCloseRules">知道了</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="./monopoly.js"></script>
+</body>
+</html>
