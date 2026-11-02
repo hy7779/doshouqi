@@ -257,6 +257,100 @@ function tick() {
   if (anim) requestAnimationFrame(tick);
 }
 
+/* ---------------- 建筑 ---------------- */
+
+const BUILDING_COLOR = {
+  mall: '#d9b26a', hotel: '#c9557e', lab: '#6c5bd8',
+  temple: '#d9822b', oil: '#3f6f5a', bank2: '#2f9e8f',
+};
+
+function shadeColor(hex, amount) {
+  if (!hex.startsWith('#')) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amount > 0 ? (255 - c) : c) * amount)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+/**
+ * 在 (x,y) 这个“地基点”上画一栋小楼
+ * 简化的等轴测盒子：正面 + 侧面 + 顶面
+ */
+function drawBuilding(x, y, level, color, zoom, highlight) {
+  const w = 15 * zoom;
+  const depth = 7 * zoom;
+  const h = (7 + level * 6.5) * zoom;
+
+  // 影子
+  ctx.beginPath();
+  ctx.ellipse(x + depth * 0.3, y + 2 * zoom, w * 0.7, depth * 0.55, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fill();
+
+  // 正面
+  ctx.fillStyle = highlight ? shadeColor(color, 0.15) : color;
+  ctx.fillRect(x - w / 2, y - h, w, h);
+
+  // 右侧面
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y);
+  ctx.lineTo(x + w / 2, y - h);
+  ctx.lineTo(x + w / 2 + depth, y - h - depth * 0.5);
+  ctx.lineTo(x + w / 2 + depth, y - depth * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = shadeColor(color, -0.35);
+  ctx.fill();
+
+  // 顶面
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y - h);
+  ctx.lineTo(x + w / 2, y - h);
+  ctx.lineTo(x + w / 2 + depth, y - h - depth * 0.5);
+  ctx.lineTo(x - w / 2 + depth, y - h - depth * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = shadeColor(color, 0.35);
+  ctx.fill();
+
+  // 窗户：一条条小亮点
+  if (zoom > 0.8) {
+    ctx.fillStyle = 'rgba(255,240,200,.75)';
+    const rows = Math.max(1, Math.floor(level));
+    for (let r = 0; r < rows; r++) {
+      const wy = y - h + 4 * zoom + r * (h / rows);
+      ctx.fillRect(x - w / 4, wy, 2 * zoom, 2 * zoom);
+      ctx.fillRect(x + w / 6, wy, 2 * zoom, 2 * zoom);
+    }
+  }
+}
+
+/** 把每块有建筑的地皮收集起来，按深度排序后绘制 */
+function collectBuildings(state, ring) {
+  const w = state.mapSides.w, h = state.mapSides.h;
+  const cx = w / 2, cy = h / 2;
+  const out = [];
+  for (const t of ring) {
+    const tile = t.tile;
+    if (tile.kind !== 'small' && tile.kind !== 'big') continue;
+    if (tile.owner == null) continue;
+    const lvl = tile.level || 0;
+    if (lvl <= 0) continue;
+    const dx = cx - (t.col + 0.5);
+    const dy = cy - (t.row + 0.5);
+    const len = Math.hypot(dx, dy) || 1;
+    const bx = t.col + 0.5 + (dx / len) * 0.3;
+    const by = t.row + 0.5 + (dy / len) * 0.3;
+    const base = project(bx, by, cam);
+    const type = tile.type || 'small';
+    const color = BUILDING_COLOR[type] || (tile.owner >= 0 ? PLAYER_COLOR[tile.owner % PLAYER_COLOR.length] : '#4f8f6b');
+    out.push({
+      depth: t.col + t.row + 0.25,
+      x: base.x, y: base.y, level: lvl, color,
+      highlight: tile.owner === state.turn,
+    });
+  }
+  return out.sort((a, b) => a.depth - b.depth);
+}
+
 function drawBoard() {
   const ring = ringTiles(state, cam);
   const inner = innerTiles(state, cam);
@@ -291,14 +385,20 @@ function drawBoard() {
       }
     }
     if (cam.zoom > 0.75) {
+      // 文字挪到外侧，别被建筑挡住
+      const bw = state.mapSides.w, bh = state.mapSides.h;
+      const ox = (t.col + 0.5) - bw / 2;
+      const oy = (t.row + 0.5) - bh / 2;
+      const ol = Math.hypot(ox, oy) || 1;
+      const lp = project(t.col + 0.5 + (ox / ol) * 0.2, t.row + 0.5 + (oy / ol) * 0.2, cam);
       ctx.fillStyle = 'rgba(255,255,255,.82)';
       ctx.font = `${Math.round(9 * cam.zoom)}px "Microsoft YaHei", sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(labelOf(t.tile), t.center.x, t.center.y - 2);
+      ctx.fillText(labelOf(t.tile), lp.x, lp.y - 2);
       if (t.tile.price) {
         ctx.fillStyle = 'rgba(255,255,255,.45)';
         ctx.font = `${Math.round(7 * cam.zoom)}px monospace`;
-        ctx.fillText(String(t.tile.price / 1000) + 'k', t.center.x, t.center.y + 9);
+        ctx.fillText(String(t.tile.price / 1000) + 'k', lp.x, lp.y + 9);
       }
     }
     if (t.tile.god) {
@@ -306,6 +406,11 @@ function drawBoard() {
       ctx.textAlign = 'center';
       ctx.fillText(GOD_MAP[t.tile.god]?.emoji || '✨', t.center.x, t.center.y - 14);
     }
+  }
+
+  // 建筑：画在格子朝内的一侧
+  for (const b of collectBuildings(state, ring)) {
+    drawBuilding(b.x, b.y, b.level, b.color, cam.zoom, b.highlight);
   }
 
   // 内圈
