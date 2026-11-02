@@ -1,7 +1,7 @@
 {
   "name": "游艺场 · 斗兽棋与大富翁",
   "short_name": "游艺场",
-  "description": "斗兽棋（联机）与大富翁（同屏）两个棋盘小游戏，可离线打开。",
+  "description": "斗兽棋（联机 / 单机 / 人机）与大富翁（同屏）两个棋盘小游戏，可离线打开。",
   "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "./",
@@ -37,7 +37,7 @@
     {
       "name": "斗兽棋",
       "short_name": "斗兽棋",
-      "url": "./webrtc.html",
+      "url": "./doushouqi.html",
       "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
     },
     {
