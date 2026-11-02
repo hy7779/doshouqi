@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111918">
+<title>斗兽棋 · 单机版</title>
+<style>
+/*__CSS__*/
+
+  /* ---------- 单机版新增 ---------- */
+  .level-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .level-button {
+    appearance: none;
+    padding: 8px 0;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: #bdaa8a;
+    background: rgba(0, 0, 0, 0.18);
+    font: inherit;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  }
+
+  .level-button:hover {
+    border-color: rgba(231, 197, 132, 0.5);
+    color: #e9d9b7;
+  }
+
+  .level-button.is-active {
+    border-color: rgba(231, 197, 132, 0.78);
+    color: #f6e6c4;
+    background: rgba(216, 175, 103, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(231, 197, 132, 0.18);
+  }
+
+  .level-button:focus-visible {
+    outline: 2px solid #f1d79f;
+    outline-offset: 2px;
+  }
+
+  .ai-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .ai-stat {
+    padding: 7px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.16);
+  }
+
+  .ai-stat span {
+    display: block;
+    margin-bottom: 1px;
+    color: #9a8b72;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+  }
+
+  .ai-stat strong {
+    color: #e2d2ad;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ai-stat.is-thinking strong {
+    color: #86b8f4;
+  }
+
+  .move-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 208px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201, 161, 92, 0.28) transparent;
+  }
+
+  .move-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .move-list::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: rgba(201, 161, 92, 0.28);
+  }
+
+  .move-item {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.14);
+    color: #c2b192;
+    font-size: 0.74rem;
+    line-height: 1.5;
+  }
+
+  .move-item.is-latest {
+    background: rgba(216, 175, 103, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(216, 175, 103, 0.22);
+  }
+
+  .move-item .mv-no {
+    flex: 0 0 auto;
+    min-width: 17px;
+    color: #8c7d66;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .move-item .mv-side {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+
+  .move-item .mv-side.red {
+    color: #e8948c;
+  }
+
+  .move-item .mv-side.blue {
+    color: #93bdf0;
+  }
+
+  .move-item .mv-eat {
+    color: #c9a15c;
+    font-size: 0.7rem;
+  }
+
+  .move-empty {
+    padding: 14px 8px;
+    color: #8f836d;
+    font-size: 0.76rem;
+    text-align: center;
+  }
+
+  .ghost-button:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  @media (max-width: 920px) {
+    .ai-panel,
+    .record-panel {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="site-header">
+    <div class="brand">
+      <div class="seal" aria-hidden="true">兽</div>
+      <div class="brand-copy">
+        <h1>斗兽棋</h1>
+        <p class="subtitle">七列九行 · 过河入穴者胜</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="conn-badge" id="engineBadge" data-state="online">本地 AI</span>
+      <button class="ghost-button" id="undoButton" type="button">悔棋</button>
+      <button class="ghost-button" id="resetButton" type="button">重新开局</button>
+    </div>
+  </header>
+
+  <main class="game-layout">
+    <section class="board-column" aria-label="对局区域">
+      <div class="turn-panel is-red" id="turnPanel">
+        <div class="turn-orb" aria-hidden="true"></div>
+        <div class="status-copy">
+          <strong class="status-title" id="statusTitle">红方回合</strong>
+          <span class="status-detail" id="statusDetail" aria-live="polite">点击红方棋子，再点高亮位置移动</span>
+        </div>
+        <span class="move-number" id="moveNumber">第 1 回合</span>
+      </div>
+
+      <div class="board-shell">
+        <div class="board" id="board" aria-label="斗兽棋棋盘，七列九行"></div>
+
+        <div class="result-overlay" id="resultOverlay" hidden>
+          <div class="result-card">
+            <div class="result-seal" id="resultSeal" aria-hidden="true">胜</div>
+            <p class="result-kicker">对局结束</p>
+            <h2 class="result-title"><span id="resultWinner">红方</span>获胜</h2>
+            <p class="result-reason" id="resultReason"></p>
+            <button class="result-button" id="playAgainButton" type="button">再来一局</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side-panel">
+      <section class="panel ai-panel">
+        <p class="panel-kicker">OPPONENT</p>
+        <h2 class="panel-title">大肥鱼 · 电脑</h2>
+        <div class="level-grid" id="levelGrid" role="group" aria-label="AI 难度">
+          <button class="level-button" type="button" data-level="easy">轻松</button>
+          <button class="level-button" type="button" data-level="normal">普通</button>
+          <button class="level-button" type="button" data-level="hard">困难</button>
+          <button class="level-button" type="button" data-level="master">大师</button>
+        </div>
+        <div class="ai-stats">
+          <div class="ai-stat" id="statDepth"><span>深度</span><strong>—</strong></div>
+          <div class="ai-stat" id="statNodes"><span>节点</span><strong>—</strong></div>
+          <div class="ai-stat" id="statScore"><span>评估</span><strong>—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel record-panel">
+        <p class="panel-kicker">RECORD</p>
+        <h2 class="panel-title">棋谱</h2>
+        <ol class="move-list" id="moveList">
+          <li class="move-empty">还没有落子</li>
+        </ol>
+      </section>
+
+      <section class="panel">
+        <p class="panel-kicker">SITUATION</p>
+        <h2 class="panel-title">局面</h2>
+        <div class="score-grid">
+          <div class="score-card red">
+            <span class="score-label">红方 · 你</span>
+            <span class="score-value" id="redCount">8</span>
+          </div>
+          <div class="score-card blue">
+            <span class="score-label">蓝方 · 大肥鱼</span>
+            <span class="score-value" id="blueCount">8</span>
+          </div>
+        </div>
+        <div class="selection-card" id="selectionCard">
+          <strong>尚未落子</strong>
+          点一枚己方棋子，棋盘会标出可以走的位置。
+        </div>
+      </section>
+
+      <section class="panel">
+        <p class="panel-kicker">LEGEND</p>
+        <h2 class="panel-title">看懂棋盘</h2>
+        <div class="legend-list">
+          <div class="legend-item">
+            <span class="legend-swatch river" aria-hidden="true">≈</span>
+            <span class="legend-copy"><strong>河流</strong>只有鼠能下水</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch trap" aria-hidden="true">陷</span>
+            <span class="legend-copy"><strong>陷阱</strong>黄格 · 踏入后等级归零</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch den" aria-hidden="true">穴</span>
+            <span class="legend-copy"><strong>兽穴</strong>进入对方兽穴即获胜</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel rules-panel">
+        <p class="panel-kicker">QUICK RULES</p>
+        <h2 class="panel-title">规则速记</h2>
+        <ul class="rules-list">
+          <li>等级：<em>鼠 ＜ 猫 ＜ 狗 ＜ 狼 ＜ 豹 ＜ 虎 ＜ 狮 ＜ 象</em>；大吃小，同级由走过去的棋子吃掉。</li>
+          <li>只有<em>鼠</em>能下水。水里的鼠不吃岸上的子，岸上的子也吃不到水里的鼠。</li>
+          <li>狮、虎可以横竖跳过河；河中只要有<em>任意一只鼠</em>，就跳不过。</li>
+          <li>踩进<em>对方陷阱</em>的棋子等级归 0，任何棋子都能吃它；但它向外吃子时仍按原等级计算。</li>
+          <li>鼠吃象，象吃不了鼠。进入对方兽穴立即获胜。</li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+
+  <p class="footer-note">你执红方先行 · 大肥鱼执蓝方 · 全部在本地运行，断网也能下</p>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// 规则引擎 + 搜索，构建时由 engine.mjs / ai-search.mjs 内联进来。
+window.DSQ = (function () {
+'use strict';
+
+/*__RULES__*/
+
+/*__AI__*/
+
+return {
+  GEO, PIECE_NAME, SIDE_NAME, OTHER,
+  pieceAt, movesOf, applyMove, initialState,
+  isRiver, isTrap, isDen,
+  boardFromState, genMoves, evaluate, searchMove
+};
+})();
+</script>
+
+<script>
+(function () {
+'use strict';
+
+const {
+  GEO, PIECE_NAME, SIDE_NAME,
+  pieceAt, movesOf, applyMove, initialState,
+  isRiver, isTrap, isDen,
+  searchMove
+} = window.DSQ;
+
+const HUMAN = 'red';
+const AI = 'blue';
+
+const LEVELS = {
+  easy:   { name: '轻松', timeMs: 150,  depth: 2,  random: 0.34 },
+  normal: { name: '普通', timeMs: 350,  depth: 4,  random: 0.08 },
+  hard:   { name: '困难', timeMs: 900,  depth: 8,  random: 0 },
+  master: { name: '大师', timeMs: 1600, depth: 12, random: 0 }
+};
+
+const LEVEL_KEY = 'dsq.level';
+let level = 'normal';
+try {
+  const saved = window.localStorage.getItem(LEVEL_KEY);
+  if (saved && LEVELS[saved]) level = saved;
+} catch {}
+
+const boardEl = document.getElementById('board');
+const turnPanelEl = document.getElementById('turnPanel');
+const statusTitleEl = document.getElementById('statusTitle');
+const statusDetailEl = document.getElementById('statusDetail');
+const moveNumberEl = document.getElementById('moveNumber');
+const redCountEl = document.getElementById('redCount');
+const blueCountEl = document.getElementById('blueCount');
+const selectionCardEl = document.getElementById('selectionCard');
+const resultOverlayEl = document.getElementById('resultOverlay');
+const resultSealEl = document.getElementById('resultSeal');
+const resultWinnerEl = document.getElementById('resultWinner');
+const resultReasonEl = document.getElementById('resultReason');
+const toastEl = document.getElementById('toast');
+const moveListEl = document.getElementById('moveList');
+const levelGridEl = document.getElementById('levelGrid');
+const undoButtonEl = document.getElementById('undoButton');
+const resetButtonEl = document.getElementById('resetButton');
+const playAgainButtonEl = document.getElementById('playAgainButton');
+const statDepthEl = document.getElementById('statDepth');
+const statNodesEl = document.getElementById('statNodes');
+const statScoreEl = document.getElementById('statScore');
+
+let game = null;
+let result = null;
+let history = [];
+let undoStack = [];
+let selected = null;
+let legalMoves = [];
+let thinking = false;
+let aiInfo = null;
+let toastTimer = null;
+
+const keyOf = (x, y) => x + ',' + y;
+
+function clone(value) {
+  if (typeof structuredClone === 'function') {
+    try { return structuredClone(value); } catch {}
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function humanTurn() {
+  return !result && game.turn === HUMAN;
+}
+
+function sideOfTurn() {
+  return result ? result.winner : game.turn;
+}
+
+function clearSelection() {
+  selected = null;
+  legalMoves = [];
+}
+
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 1700);
+}
+
+// ---------- 走棋 ----------
+function doMove(from, to) {
+  const mover = pieceAt(game, from.x, from.y);
+  if (!mover) return { ok: false, error: '这一格没有棋子' };
+  const target = pieceAt(game, to.x, to.y);
+
+  undoStack.push({ state: clone(game), result, history: history.slice() });
+
+  const res = applyMove(game, from, to);
+  if (!res.ok) {
+    undoStack.pop();
+    return res;
+  }
+
+  history.push({
+    side: mover.side,
+    rank: mover.rank,
+    from: { x: from.x, y: from.y },
+    to: { x: to.x, y: to.y },
+    captured: target ? target.rank : 0
+  });
+  game.lastMove = { side: mover.side, rank: mover.rank, from, to };
+
+  if (res.winner) result = { winner: res.winner, reason: res.reason || '' };
+  return res;
+}
+
+function newGame() {
+  if (thinking) return;
+  game = initialState();
+  game.lastMove = null;
+  result = null;
+  history = [];
+  undoStack = [];
+  aiInfo = null;
+  clearSelection();
+  render();
+}
+
+function undo() {
+  if (thinking) return;
+  if (!undoStack.length) {
+    showToast('还没有可以撤销的一手');
+    return;
+  }
+
+  let entry = undoStack.pop();
+  // 若退回到蓝方回合，说明刚才撤掉的是 AI 那一手，把上一手也一起撤掉
+  while (entry && entry.state.turn !== HUMAN && undoStack.length) {
+    entry = undoStack.pop();
+  }
+  if (!entry) {
+    showToast('还没有可以撤销的一手');
+    return;
+  }
+
+  game = entry.state;
+  result = entry.result;
+  history = entry.history;
+  aiInfo = null;
+  clearSelection();
+  render();
+  showToast('已悔棋');
+}
+
+// ---------- AI ----------
+async function maybeAutoPlay() {
+  if (thinking || result || game.turn !== AI) return;
+
+  thinking = true;
+  render();
+  // 让"思考中"先画出来，再开始占用主线程
+  await new Promise((resolve) => window.setTimeout(resolve, 70));
+  if (result || game.turn !== AI) {
+    thinking = false;
+    render();
+    return;
+  }
+
+  const cfg = LEVELS[level];
+  let move = null;
+  try {
+    move = searchMove(game, { timeMs: cfg.timeMs, maxDepth: cfg.depth, random: cfg.random });
+  } catch (error) {
+    console.error('搜索失败', error);
+    showToast('AI 算崩了，改用随机走法');
+  }
+
+  thinking = false;
+
+  if (!move) {
+    result = { winner: HUMAN, reason: '对方无子可走' };
+    render();
+    return;
+  }
+
+  aiInfo = move;
+  const res = doMove(move.from, move.to);
+  if (!res.ok) {
+    result = { winner: HUMAN, reason: 'AI 走法不合法（' + (res.error || '') + '）' };
+  }
+  render();
+}
+
+// ---------- 渲染 ----------
+function updateStatus() {
+  turnPanelEl.classList.remove('is-red', 'is-blue', 'is-thinking');
+
+  const side = sideOfTurn();
+  if (side) turnPanelEl.classList.add('is-' + side);
+
+  if (result) {
+    statusTitleEl.textContent = result.winner ? SIDE_NAME[result.winner] + '胜利' : '和棋';
+    statusDetailEl.textContent = result.reason || '对局结束';
+    moveNumberEl.textContent = '共 ' + history.length + ' 手';
+    return;
+  }
+
+  statusTitleEl.textContent = SIDE_NAME[game.turn] + '回合';
+  moveNumberEl.textContent = '第 ' + (Math.floor(history.length / 2) + 1) + ' 回合';
+
+  if (thinking) {
+    turnPanelEl.classList.add('is-thinking');
+    statusDetailEl.textContent = '大肥鱼正在思考…';
+    return;
+  }
+
+  if (!humanTurn()) {
+    statusDetailEl.textContent = '等待蓝方落子';
+    return;
+  }
+
+  if (selected) {
+    const p = pieceAt(game, selected.x, selected.y);
+    if (p) {
+      statusDetailEl.textContent =
+        '已选 ' + PIECE_NAME[p.rank] + '（' + p.rank + '级）· ' +
+        (legalMoves.length ? legalMoves.length + ' 个落点' : '暂无路可走');
+      return;
+    }
+  }
+
+  statusDetailEl.textContent = '轮到你 · 点击红方棋子，再点高亮位置';
+}
+
+function updateSidePanel() {
+  redCountEl.textContent = String(game.pieces.filter((p) => p.side === 'red').length);
+  blueCountEl.textContent = String(game.pieces.filter((p) => p.side === 'blue').length);
+
+  if (result) {
+    selectionCardEl.innerHTML =
+      '<strong>对局结束</strong>' +
+      (result.winner ? SIDE_NAME[result.winner] + '获胜。' : '双方和棋。') +
+      (result.reason ? ' · ' + result.reason : '');
+    return;
+  }
+
+  if (thinking) {
+    selectionCardEl.innerHTML = '<strong class="blue-text">蓝方思考中</strong>本地搜索正在计算下一步。';
+    return;
+  }
+
+  if (selected) {
+    const p = pieceAt(game, selected.x, selected.y);
+    if (p) {
+      const cls = p.side === 'red' ? 'red-text' : 'blue-text';
+      selectionCardEl.innerHTML =
+        '<strong class="' + cls + '">' + SIDE_NAME[p.side] + ' · ' + PIECE_NAME[p.rank] + '</strong>' +
+        '等级 ' + p.rank + ' · ' + (legalMoves.length ? '可走 ' + legalMoves.length + ' 处' : '暂时无路可走');
+      return;
+    }
+  }
+
+  selectionCardEl.innerHTML =
+    '<strong>轮到你</strong>' +
+    '点一枚红方棋子，棋盘会标出可以走的位置。';
+}
+
+function updateResult() {
+  if (!result) {
+    resultOverlayEl.hidden = true;
+    return;
+  }
+  resultOverlayEl.hidden = false;
+  resultSealEl.textContent = result.winner === HUMAN ? '胜' : (result.winner === AI ? '负' : '和');
+  resultSealEl.className = 'result-seal ' + (result.winner || '');
+  resultWinnerEl.textContent = result.winner ? SIDE_NAME[result.winner] : '和棋';
+  resultWinnerEl.className = result.winner || '';
+  resultReasonEl.textContent = result.reason || '对局结束';
+}
+
+function updateHistory() {
+  if (!history.length) {
+    moveListEl.innerHTML = '<li class="move-empty">还没有落子</li>';
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  history.forEach((mv, index) => {
+    const li = document.createElement('li');
+    li.className = 'move-item' + (index === history.length - 1 ? ' is-latest' : '');
+
+    const no = document.createElement('span');
+    no.className = 'mv-no';
+    no.textContent = mv.side === 'red' ? (Math.floor(index / 2) + 1) + '.' : '';
+    li.appendChild(no);
+
+    const side = document.createElement('span');
+    side.className = 'mv-side ' + mv.side;
+    side.textContent = mv.side === 'red' ? '红' : '蓝';
+    li.appendChild(side);
+
+    const text = document.createElement('span');
+    text.textContent =
+      PIECE_NAME[mv.rank] + ' (' + mv.from.x + ',' + mv.from.y + ')→(' + mv.to.x + ',' + mv.to.y + ')';
+    li.appendChild(text);
+
+    if (mv.captured) {
+      const eat = document.createElement('span');
+      eat.className = 'mv-eat';
+      eat.textContent = '吃' + PIECE_NAME[mv.captured];
+      li.appendChild(eat);
+    }
+
+    fragment.appendChild(li);
+  });
+
+  moveListEl.replaceChildren(fragment);
+  moveListEl.scrollTop = moveListEl.scrollHeight;
+}
+
+function fmtScore(score) {
+  if (score >= 900000) return '必胜';
+  if (score <= -900000) return '必败';
+  return (score >= 0 ? '+' : '') + (score / 100).toFixed(1);
+}
+
+function updateAIStats() {
+  const cells = [statDepthEl, statNodesEl, statScoreEl];
+  if (thinking) {
+    cells.forEach((cell) => cell.classList.add('is-thinking'));
+    statDepthEl.querySelector('strong').textContent = '…';
+    statNodesEl.querySelector('strong').textContent = '…';
+    statScoreEl.querySelector('strong').textContent = '…';
+    return;
+  }
+  cells.forEach((cell) => cell.classList.remove('is-thinking'));
+  if (!aiInfo) {
+    statDepthEl.querySelector('strong').textContent = '—';
+    statNodesEl.querySelector('strong').textContent = '—';
+    statScoreEl.querySelector('strong').textContent = '—';
+    return;
+  }
+  statDepthEl.querySelector('strong').textContent = aiInfo.depth ? String(aiInfo.depth) : '随机';
+  statNodesEl.querySelector('strong').textContent = !aiInfo.nodes
+    ? '—'
+    : (aiInfo.nodes > 9999 ? Math.round(aiInfo.nodes / 1000) + 'k' : String(aiInfo.nodes));
+  statScoreEl.querySelector('strong').textContent = aiInfo.depth ? fmtScore(aiInfo.score || 0) : '—';
+}
+
+function updateButtons() {
+  undoButtonEl.disabled = thinking || !undoStack.length;
+  resetButtonEl.disabled = thinking;
+  levelGridEl.querySelectorAll('.level-button').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.level === level);
+  });
+}
+
+function makeTerrainMark(className, text) {
+  const mark = document.createElement('span');
+  mark.className = 'terrain-mark ' + className;
+  mark.textContent = text;
+  mark.setAttribute('aria-hidden', 'true');
+  return mark;
+}
+
+function renderBoard() {
+  const moveMap = new Map(legalMoves.map((m) => [keyOf(m.x, m.y), m]));
+  const canPlay = !result && !thinking && game.turn === HUMAN;
+  const lastMove = game.lastMove;
+  const fragment = document.createDocumentFragment();
+
+  for (let y = 1; y <= GEO.rows; y++) {
+    for (let x = 1; x <= GEO.cols; x++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cell';
+      cell.dataset.x = String(x);
+      cell.dataset.y = String(y);
+
+      const river = isRiver(x, y);
+      const trapSide = isTrap(x, y, 'red') ? 'red' : (isTrap(x, y, 'blue') ? 'blue' : null);
+      const denSide = isDen(x, y, 'red') ? 'red' : (isDen(x, y, 'blue') ? 'blue' : null);
+      const piece = pieceAt(game, x, y);
+      const move = moveMap.get(keyOf(x, y));
+
+      if (river) cell.classList.add('river');
+      if (trapSide) cell.classList.add('trap');
+      if (denSide) cell.classList.add('den', 'den-' + denSide);
+
+      if (selected && selected.x === x && selected.y === y) cell.classList.add('selected');
+      if (lastMove && lastMove.from.x === x && lastMove.from.y === y) cell.classList.add('last-from');
+      if (lastMove && lastMove.to.x === x && lastMove.to.y === y) cell.classList.add('last-to');
+
+      if (canPlay && piece && piece.side === HUMAN) cell.classList.add('can-select');
+      if (canPlay && move) cell.classList.add(move.capture ? 'can-capture' : 'can-move');
+      if (!canPlay) cell.classList.add('is-locked');
+
+      let label = '第' + x + '列，第' + y + '行';
+      if (river) label += '，河流';
+      if (trapSide) label += '，' + SIDE_NAME[trapSide] + '陷阱';
+      if (denSide) label += '，' + SIDE_NAME[denSide] + '兽穴';
+      if (piece) label += '，' + SIDE_NAME[piece.side] + PIECE_NAME[piece.rank];
+      if (move) label += move.capture ? '，可以吃子' : '，可以走到这里';
+
+      if (river) cell.appendChild(makeTerrainMark('wave-mark', '≈'));
+      if (trapSide) cell.appendChild(makeTerrainMark('trap-mark', '陷'));
+      if (denSide) cell.appendChild(makeTerrainMark('den-mark', '穴'));
+
+      if (piece) {
+        const pieceEl = document.createElement('span');
+        pieceEl.className = 'piece ' + piece.side;
+        pieceEl.textContent = PIECE_NAME[piece.rank];
+        pieceEl.setAttribute('aria-hidden', 'true');
+        cell.appendChild(pieceEl);
+      }
+
+      if (move && !move.capture) {
+        const hint = document.createElement('span');
+        hint.className = 'move-hint';
+        hint.setAttribute('aria-hidden', 'true');
+        cell.appendChild(hint);
+      }
+
+      cell.setAttribute('aria-label', label);
+      fragment.appendChild(cell);
+    }
+  }
+
+  boardEl.replaceChildren(fragment);
+}
+
+function render() {
+  renderBoard();
+  updateStatus();
+  updateSidePanel();
+  updateResult();
+  updateHistory();
+  updateAIStats();
+  updateButtons();
+}
+
+// ---------- 交互 ----------
+function selectPieceAt(x, y) {
+  const p = pieceAt(game, x, y);
+  if (!p) return;
+  selected = { x, y };
+  legalMoves = movesOf(game, p);
+  render();
+  if (legalMoves.length === 0) showToast(PIECE_NAME[p.rank] + '现在没有可以走的位置');
+}
+
+async function playHuman(from, to) {
+  const res = doMove(from, to);
+  if (!res.ok) {
+    showToast(res.error || '这一步走不了');
+    render();
+    return;
+  }
+  clearSelection();
+  render();
+  if (result) return;
+  await maybeAutoPlay();
+}
+
+function onCellClick(x, y) {
+  if (result) return;
+  if (thinking) {
+    showToast('大肥鱼正在思考，稍等');
+    return;
+  }
+  if (game.turn !== HUMAN) return;
+
+  const target = pieceAt(game, x, y);
+
+  if (selected) {
+    const move = legalMoves.find((m) => m.x === x && m.y === y);
+    if (move) {
+      void playHuman(selected, { x, y });
+      return;
+    }
+    if (target && target.side === HUMAN) {
+      if (selected.x === x && selected.y === y) {
+        clearSelection();
+        render();
+        return;
+      }
+      selectPieceAt(x, y);
+      return;
+    }
+    if (target) {
+      showToast('这枚' + SIDE_NAME[target.side] + '棋子现在吃不到');
+      return;
+    }
+    clearSelection();
+    render();
+    showToast('只能走到高亮的位置');
+    return;
+  }
+
+  if (target && target.side === HUMAN) {
+    selectPieceAt(x, y);
+    return;
+  }
+  if (target) {
+    showToast('现在轮到红方，先选自己的棋子');
+    return;
+  }
+  showToast('先选一枚红方棋子');
+}
+
+boardEl.addEventListener('click', (event) => {
+  const cell = event.target.closest('.cell');
+  if (!cell || !boardEl.contains(cell)) return;
+  const x = Number(cell.dataset.x);
+  const y = Number(cell.dataset.y);
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+  onCellClick(x, y);
+});
+
+levelGridEl.addEventListener('click', (event) => {
+  const btn = event.target.closest('.level-button');
+  if (!btn) return;
+  const next = btn.dataset.level;
+  if (!LEVELS[next] || next === level) return;
+  level = next;
+  try { window.localStorage.setItem(LEVEL_KEY, level); } catch {}
+  updateButtons();
+  showToast('难度：' + LEVELS[level].name);
+});
+
+undoButtonEl.addEventListener('click', () => undo());
+resetButtonEl.addEventListener('click', () => newGame());
+playAgainButtonEl.addEventListener('click', () => newGame());
+
+// 调试用：在控制台里能看当前局面
+window.doushouqi = {
+  state: () => clone(game),
+  history: () => history.map((m) => ({ ...m })),
+  result: () => result && { ...result },
+  level: () => level
+};
+
+game = initialState();
+game.lastMove = null;
+render();
+})();
+</script>
+</body>
+</html>
