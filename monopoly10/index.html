@@ -60,6 +60,11 @@
     background: #17251f; font-size: 12px; }
   .opts button.on { border-color: var(--gold); color: var(--gold); }
   #setup button.primary { padding: 10px; border-radius: 10px; font-weight: 600; }
+  .setup-box input { background: #0e1a16; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; width: 150px; }
+  #roombar { position: fixed; left: 14px; top: 92px; z-index: 90; font-size: 12px; }
+  #roombar b { color: var(--gold); letter-spacing: .2em; margin: 0 4px; }
+  .waiting { color: var(--dim); font-size: 13px; padding: 8px 4px; }
 
   #rotate { position: fixed; inset: 0; background: #08120f; z-index: 200; display: none;    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
     color: var(--ink); font-size: 15px; letter-spacing: .1em; }
@@ -119,6 +124,11 @@
 <div id="setup">
   <div class="panel setup-box">
     <h2>开一局</h2>
+    <div class="row"><span>模式</span><div class="opts" id="modeOpts">
+      <button data-mode="solo" class="on">单机</button>
+      <button data-mode="host">开房</button>
+      <button data-mode="join">加入</button>
+    </div></div>
     <div class="row"><span>地图</span><div class="opts" id="mapOpts">
       <button data-map="small" class="on">小 50 格</button>
       <button data-map="medium">中 90 格</button>
@@ -129,8 +139,14 @@
       <button data-n="4" class="on">4</button><button data-n="5">5</button>
       <button data-n="6">6</button><button data-n="7">7</button><button data-n="8">8</button>
     </div></div>
+    <div class="row"><span>名字</span><input id="nameInput" maxlength="6" value="玩家" /></div>
+    <div class="row" id="codeRow" hidden><span>房间号</span><input id="codeInput" maxlength="6" placeholder="六位，如 AB12CD" /></div>
     <button class="primary" id="startBtn" style="margin-top:6px">开始游戏</button>
   </div>
+</div>
+
+<div class="panel" id="roombar" hidden>
+  房间号 <b id="roomCode">—</b> · <span id="roomStatus">等待玩家</span>
 </div>
 
 <div id="rotate">
@@ -139,6 +155,7 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script type="module" src="./render/app.mjs"></script>
 </body>
 </html>

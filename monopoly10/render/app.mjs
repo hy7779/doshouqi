@@ -4,9 +4,11 @@
  */
 import { createGame } from '../engine/state.mjs';
 import {
-  roll, buy, pass, endTurn, upgrade, useCard, buyCard, closeShop, respondReaction, chooseBigType, cancelBigType, upgradeCostFor,
-  bankDeposit, bankWithdrawAll, leaveBank, buyLottery, leaveLottery, magicDraw, leaveMagic,
+  applyAction, upgradeCostFor,
 } from '../engine/engine.mjs';
+import { GameHost } from '../net/host.mjs';
+import { GameClient } from '../net/client.mjs';
+import { createHost, joinRoom, makeCode } from '../net/peer.mjs';
 import { makeRuleset } from '../config/ruleset.mjs';
 import { MAPS } from '../config/maps.mjs';
 import { CHARACTER_LIST } from '../config/characters.mjs';
@@ -27,25 +29,137 @@ let hover = null;
 const PLAYERS = 4;
 const ruleset = makeRuleset('standard', { 'rules.mapId': 'small', 'rules.maxRounds': 30 });
 
-const setupChoice = { map: 'small', players: 4 };
+const setupChoice = { map: 'small', players: 4, mode: 'solo' };
 
-function newGame(mapId = setupChoice.map, players = setupChoice.players) {
-  const map = MAPS[mapId];
+const net = { mode: 'solo', code: null, host: null, client: null, peer: null, you: 0 };
+
+/** 所有操作统一走这里：单机本地执行 / 房主本地执行并广播 / 客人只发送
+ *  返回值：单机与房主表示是否真的执行了；客人一律返回 true（由房主裁决） */
+function submit(action) {
+  if (net.mode === 'guest') {
+    if (!net.client) return false;
+    if (state.turn !== net.you) { toast('还没轮到你'); return false; }
+    net.client.act(action);
+    return true;
+  }
+  if (net.mode === 'host') {
+    return !!net.host?.act(action);
+  }
+  const next = applyAction(state, action);
+  if (next === state) { toast('这一步现在做不了'); return false; }
+  state = next;
+  afterChange();
+  return true;
+}
+
+/* 兼容旧调用点：这些包装只负责把动作转成 submit，状态由 submit 更新 */
+const act = (a) => { submit(a); return state; };
+const roll = () => act({ type: 'roll' });
+const buy = () => act({ type: 'buy' });
+const pass = () => act({ type: 'pass' });
+const endTurn = () => act({ type: 'endTurn' });
+const upgrade = (_s, pos) => act({ type: 'upgrade', pos });
+const useCard = (_s, cardId, target) => act({ type: 'useCard', cardId, target });
+const buyCard = (_s, cardId) => act({ type: 'buyCard', cardId });
+const closeShop = () => act({ type: 'closeShop' });
+const respondReaction = (_s, cardId, target) => act({ type: 'respond', cardId, target });
+const bankDeposit = (_s, percent) => act({ type: 'bankDeposit', percent });
+const bankWithdrawAll = () => act({ type: 'bankWithdraw' });
+const leaveBank = () => act({ type: 'leaveBank' });
+const buyLottery = (_s, count) => act({ type: 'buyLottery', count });
+const leaveLottery = () => act({ type: 'leaveLottery' });
+const magicDraw = () => act({ type: 'magicDraw' });
+const leaveMagic = () => act({ type: 'leaveMagic' });
+const chooseBigType = (_s, typeId) => act({ type: 'chooseBigType', typeId });
+const cancelBigType = () => act({ type: 'cancelBigType' });
+
+function startSolo() {
+  const map = MAPS[setupChoice.map];
   const rounds = map?.recommended?.rounds ?? 45;
-  const gameRuleset = makeRuleset('standard', { 'rules.mapId': mapId, 'rules.maxRounds': rounds });
+  const gameRuleset = makeRuleset('standard', { 'rules.mapId': setupChoice.map, 'rules.maxRounds': rounds });
   const chars = CHARACTER_LIST.map((c) => c.id);
   const names = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛'];
+  net.mode = 'solo';
   state = createGame({
     ruleset: gameRuleset,
-    mapId,
-    names: names.slice(0, players),
+    mapId: setupChoice.map,
+    names: names.slice(0, setupChoice.players),
     seed: (Date.now() % 100000) | 1,
-    characterIds: chars.slice(0, players),
+    characterIds: chars.slice(0, setupChoice.players),
   });
   targeting = null;
   legalTiles = null;
   anim = null;
   afterChange();
+}
+
+function startHost() {
+  const map = MAPS[setupChoice.map];
+  const rounds = map?.recommended?.rounds ?? 45;
+  const gameRuleset = makeRuleset('standard', { 'rules.mapId': setupChoice.map, 'rules.maxRounds': rounds });
+  const chars = CHARACTER_LIST.map((c) => c.id);
+  const names = Array.from({ length: setupChoice.players }, (_, i) => (i === 0 ? '房主' : `玩家${i + 1}`));
+
+  state = createGame({
+    ruleset: gameRuleset,
+    mapId: setupChoice.map,
+    names,
+    seed: (Date.now() % 100000) | 1,
+    characterIds: chars.slice(0, setupChoice.players),
+  });
+
+  const code = makeCode();
+  net.mode = 'host';
+  net.code = code;
+  net.you = 0;
+  net.host = new GameHost(state, {
+    onChange: () => {
+      state = net.host.state;
+      updateRoomBar();
+      afterChange();
+    },
+  });
+  if (window.Peer) {
+    net.peer = createHost(code, {
+      onConn: (conn) => net.host.attach(conn),
+      onError: (err) => toast('联机错误：' + (err?.type || err)),
+    });
+  } else {
+    toast('PeerJS 未加载，联机不可用');
+  }
+  $('roombar').hidden = false;
+  updateRoomBar();
+  afterChange();
+}
+
+function startJoin(code) {
+  net.mode = 'guest';
+  net.code = code;
+  if (!window.Peer) { toast('PeerJS 未加载，联机不可用'); return; }
+  net.peer = joinRoom(code, {
+    onConn: (conn) => {
+      net.client = new GameClient(conn, {
+        welcome: (msg) => {
+          net.you = msg.you;
+          state = msg.view;
+          afterChange();
+        },
+        state: (view) => { state = view; afterChange(); },
+        error: (m) => toast(m),
+        close: () => toast('与房主断开连接'),
+      });
+      net.client.join($('nameInput').value.trim() || '玩家');
+    },
+    onError: (err) => toast('连接失败：' + (err?.type || err)),
+  });
+}
+
+function updateRoomBar() {
+  if (net.mode !== 'host' || !net.code) return;
+  $('roomCode').textContent = net.code;
+  const joined = net.host ? net.host.conns.size : 0;
+  const total = state.players.length - 1;
+  $('roomStatus').textContent = joined < total ? `${joined}/${total} 已入座，等待玩家` : `${joined}/${total} 已入座，可以开始`;
 }
 
 function showSetup() {
@@ -64,9 +178,28 @@ function showSetup() {
       $('countOpts').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
     };
   });
+  $('modeOpts').querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === setupChoice.mode);
+    b.onclick = () => {
+      setupChoice.mode = b.dataset.mode;
+      $('modeOpts').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      $('codeRow').hidden = setupChoice.mode !== 'join';
+      $('startBtn').textContent = setupChoice.mode === 'host' ? '创建房间'
+        : setupChoice.mode === 'join' ? '进入房间' : '开始游戏';
+    };
+  });
+
   $('startBtn').onclick = () => {
+    if (setupChoice.mode === 'join') {
+      const code = $('codeInput').value.trim().toUpperCase();
+      if (code.length !== 6) { toast('房间号是 6 位'); return; }
+      $('setup').hidden = true;
+      startJoin(code);
+      return;
+    }
     $('setup').hidden = true;
-    newGame();
+    if (setupChoice.mode === 'host') startHost();
+    else startSolo();
   };
 }
 
@@ -353,8 +486,7 @@ function handleClick(e) {
 
   const t = hit.tile;
   if (t.owner === state.players[state.turn].id && ['postRoll', 'preRoll'].includes(state.phase)) {
-    const next = upgrade(state, hit.i);
-    if (next !== state) { state = next; afterChange(); toast('升级成功'); }
+    if (submit({ type: 'upgrade', pos: hit.i })) toast('升级成功');
     else toast('这里现在不能升级');
   }
 }
@@ -391,7 +523,15 @@ function renderHUD() {
     acts.appendChild(b);
   };
 
-  if (state.phase === 'preRoll') {
+  const blocked = (net.mode === 'guest' && state.turn !== net.you)
+    || (net.mode === 'host' && net.host && net.host.conns.size < state.players.length - 1);
+
+  if (blocked) {
+    const msg = document.createElement('div');
+    msg.className = 'waiting';
+    msg.textContent = net.mode === 'host' ? '等待其他玩家入座…' : `等待 ${state.players[state.turn].name} 操作…`;
+    acts.appendChild(msg);
+  } else if (state.phase === 'preRoll') {
     mk('掷骰子', doRoll, 'primary');
     if (targeting) mk('取消选卡', () => { targeting = null; renderHUD(); draw(); });
   } else if (state.phase === 'awaitBuy') {
@@ -457,7 +597,7 @@ function renderHUD() {
     mk('结束回合', () => { state = endTurn(state); afterChange(); }, 'primary');
     if (targeting) mk('取消选卡', () => { targeting = null; renderHUD(); draw(); });
   } else {
-    mk('再来一局', newGame, 'primary');
+    mk('再来一局', showSetup, 'primary');
   }
 
   // 玩家列表（选目标 / 嫁祸选人模式下可点）
@@ -524,6 +664,7 @@ let targeting = null;
 let blamePick = false;
 
 function startTargeting(cardId) {
+  if (net.mode === 'guest' && state.turn !== net.you) { toast('还没轮到你'); return; }
   const card = CARD_LIST.find((c) => c.id === cardId);
   if (!card) return;
   if (card.timing !== 'active') { toast('这张卡只能在被结算时触发'); return; }
@@ -549,21 +690,17 @@ function startTargeting(cardId) {
     targeting = { cardId, kind: 'player', byId: state.turn };
     toast('点击右侧玩家头像');
   } else {
-    const next = useCard(state, cardId);
-    if (next === state) { toast('现在不能用这张卡'); return; }
-    state = next;
-    afterChange();
+    if (!submit({ type: 'useCard', cardId })) { toast('现在不能用这张卡'); return; }
   }
   renderHUD();
 }
 
 function applyTargetCard(target) {
   if (!targeting) return;
-  const next = useCard(state, targeting.cardId, target);
-  if (next === state) { toast('这个目标不合法'); return; }
-  state = next;
+  const cardId = targeting.cardId;
   targeting = null;
   legalTiles = null;
+  if (!submit({ type: 'useCard', cardId, target })) toast('这个目标不合法');
   afterChange();
 }
 
@@ -580,7 +717,7 @@ function doRoll() {
     el.textContent = `${1 + Math.floor(Math.random() * 6)} + ${1 + Math.floor(Math.random() * 6)}`;
     if (++n > 6) {
       clearInterval(timer);
-      state = roll(state);
+      submit({ type: 'roll' });
       const mover = state.players[moverId];
       if (fromZone === 'ring' && mover.zone === 'ring') {
         const steps = ((mover.pos - from) % state.tiles.length + state.tiles.length) % state.tiles.length;
