@@ -9,6 +9,18 @@
 /*__CSS__*/
 
   /* ---------- 单机版新增 ---------- */
+  .duo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .level-button:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+  }
+
   .level-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -176,7 +188,7 @@
       </div>
     </div>
     <div class="header-actions">
-      <span class="conn-badge" id="engineBadge" data-state="online">本地 AI</span>
+      <span class="conn-badge" id="engineBadge" data-state="online">本地运行</span>
       <button class="ghost-button" id="undoButton" type="button">悔棋</button>
       <button class="ghost-button" id="resetButton" type="button">重新开局</button>
     </div>
@@ -211,7 +223,11 @@
     <aside class="side-panel">
       <section class="panel ai-panel">
         <p class="panel-kicker">OPPONENT</p>
-        <h2 class="panel-title">大肥鱼 · 电脑</h2>
+        <h2 class="panel-title" id="opponentTitle">大肥鱼 · 电脑</h2>
+        <div class="duo-grid" id="duoGrid" role="group" aria-label="对弈方式">
+          <button class="level-button is-active" type="button" data-duo="0">打电脑</button>
+          <button class="level-button" type="button" data-duo="1">双人同屏</button>
+        </div>
         <div class="level-grid" id="levelGrid" role="group" aria-label="AI 难度">
           <button class="level-button" type="button" data-level="easy">轻松</button>
           <button class="level-button" type="button" data-level="normal">普通</button>
@@ -238,11 +254,11 @@
         <h2 class="panel-title">局面</h2>
         <div class="score-grid">
           <div class="score-card red">
-            <span class="score-label">红方 · 你</span>
+            <span class="score-label" id="redLabel">红方 · 你</span>
             <span class="score-value" id="redCount">8</span>
           </div>
           <div class="score-card blue">
-            <span class="score-label">蓝方 · 大肥鱼</span>
+            <span class="score-label" id="blueLabel">蓝方 · 大肥鱼</span>
             <span class="score-value" id="blueCount">8</span>
           </div>
         </div>
@@ -285,7 +301,7 @@
     </aside>
   </main>
 
-  <p class="footer-note">你执红方先行 · 大肥鱼执蓝方 · 全部在本地运行，断网也能下</p>
+  <p class="footer-note">红方先行 · 全部在本地运行，断网也能下 · 可切「双人同屏」自己和自己下</p>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -351,6 +367,10 @@ const resultReasonEl = document.getElementById('resultReason');
 const toastEl = document.getElementById('toast');
 const moveListEl = document.getElementById('moveList');
 const levelGridEl = document.getElementById('levelGrid');
+const duoGridEl = document.getElementById('duoGrid');
+const opponentTitleEl = document.getElementById('opponentTitle');
+const redLabelEl = document.getElementById('redLabel');
+const blueLabelEl = document.getElementById('blueLabel');
 const undoButtonEl = document.getElementById('undoButton');
 const resetButtonEl = document.getElementById('resetButton');
 const playAgainButtonEl = document.getElementById('playAgainButton');
@@ -366,6 +386,7 @@ let selected = null;
 let legalMoves = [];
 let thinking = false;
 let aiInfo = null;
+let duo = false;
 let toastTimer = null;
 
 const keyOf = (x, y) => x + ',' + y;
@@ -378,7 +399,7 @@ function clone(value) {
 }
 
 function humanTurn() {
-  return !result && game.turn === HUMAN;
+  return !result && (duo || game.turn === HUMAN);
 }
 
 function sideOfTurn() {
@@ -445,7 +466,7 @@ function undo() {
 
   let entry = undoStack.pop();
   // 若退回到蓝方回合，说明刚才撤掉的是 AI 那一手，把上一手也一起撤掉
-  while (entry && entry.state.turn !== HUMAN && undoStack.length) {
+  while (!duo && entry && entry.state.turn !== HUMAN && undoStack.length) {
     entry = undoStack.pop();
   }
   if (!entry) {
@@ -464,7 +485,7 @@ function undo() {
 
 // ---------- AI ----------
 async function maybeAutoPlay() {
-  if (thinking || result || game.turn !== AI) return;
+  if (duo || thinking || result || game.turn !== AI) return;
 
   thinking = true;
   render();
@@ -539,7 +560,9 @@ function updateStatus() {
     }
   }
 
-  statusDetailEl.textContent = '轮到你 · 点击红方棋子，再点高亮位置';
+  statusDetailEl.textContent = duo
+    ? '双人同屏 · 轮到' + SIDE_NAME[game.turn] + '，点棋子再点落点'
+    : '轮到你 · 点击红方棋子，再点高亮位置';
 }
 
 function updateSidePanel() {
@@ -570,9 +593,9 @@ function updateSidePanel() {
     }
   }
 
-  selectionCardEl.innerHTML =
-    '<strong>轮到你</strong>' +
-    '点一枚红方棋子，棋盘会标出可以走的位置。';
+  selectionCardEl.innerHTML = duo
+    ? '<strong>轮到' + SIDE_NAME[game.turn] + '</strong>同屏双人，轮流走子。'
+    : '<strong>轮到你</strong>' + '点一枚红方棋子，棋盘会标出可以走的位置。';
 }
 
 function updateResult() {
@@ -581,7 +604,7 @@ function updateResult() {
     return;
   }
   resultOverlayEl.hidden = false;
-  resultSealEl.textContent = result.winner === HUMAN ? '胜' : (result.winner === AI ? '负' : '和');
+  resultSealEl.textContent = duo ? '胜' : (result.winner === HUMAN ? '胜' : (result.winner === AI ? '负' : '和'));
   resultSealEl.className = 'result-seal ' + (result.winner || '');
   resultWinnerEl.textContent = result.winner ? SIDE_NAME[result.winner] : '和棋';
   resultWinnerEl.className = result.winner || '';
@@ -662,7 +685,14 @@ function updateButtons() {
   resetButtonEl.disabled = thinking;
   levelGridEl.querySelectorAll('.level-button').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.level === level);
+    btn.disabled = duo;
   });
+  duoGridEl.querySelectorAll('[data-duo]').forEach((btn) => {
+    btn.classList.toggle('is-active', (btn.dataset.duo === '1') === duo);
+  });
+  opponentTitleEl.textContent = duo ? '双人同屏 · 红蓝轮流' : '大肥鱼 · 电脑';
+  redLabelEl.textContent = duo ? '红方' : '红方 · 你';
+  blueLabelEl.textContent = duo ? '蓝方' : '蓝方 · 大肥鱼';
 }
 
 function makeTerrainMark(className, text) {
@@ -675,7 +705,7 @@ function makeTerrainMark(className, text) {
 
 function renderBoard() {
   const moveMap = new Map(legalMoves.map((m) => [keyOf(m.x, m.y), m]));
-  const canPlay = !result && !thinking && game.turn === HUMAN;
+  const canPlay = !result && !thinking && (duo || game.turn === HUMAN);
   const lastMove = game.lastMove;
   const fragment = document.createDocumentFragment();
 
@@ -701,7 +731,7 @@ function renderBoard() {
       if (lastMove && lastMove.from.x === x && lastMove.from.y === y) cell.classList.add('last-from');
       if (lastMove && lastMove.to.x === x && lastMove.to.y === y) cell.classList.add('last-to');
 
-      if (canPlay && piece && piece.side === HUMAN) cell.classList.add('can-select');
+      if (canPlay && piece && piece.side === (duo ? game.turn : HUMAN)) cell.classList.add('can-select');
       if (canPlay && move) cell.classList.add(move.capture ? 'can-capture' : 'can-move');
       if (!canPlay) cell.classList.add('is-locked');
 
@@ -778,7 +808,7 @@ function onCellClick(x, y) {
     showToast('大肥鱼正在思考，稍等');
     return;
   }
-  if (game.turn !== HUMAN) return;
+  if (!duo && game.turn !== HUMAN) return;
 
   const target = pieceAt(game, x, y);
 
@@ -788,7 +818,7 @@ function onCellClick(x, y) {
       void playHuman(selected, { x, y });
       return;
     }
-    if (target && target.side === HUMAN) {
+    if (target && target.side === (duo ? game.turn : HUMAN)) {
       if (selected.x === x && selected.y === y) {
         clearSelection();
         render();
@@ -807,12 +837,12 @@ function onCellClick(x, y) {
     return;
   }
 
-  if (target && target.side === HUMAN) {
+  if (target && target.side === (duo ? game.turn : HUMAN)) {
     selectPieceAt(x, y);
     return;
   }
   if (target) {
-    showToast('现在轮到红方，先选自己的棋子');
+    showToast('现在轮到' + SIDE_NAME[game.turn] + '，先选自己的棋子');
     return;
   }
   showToast('先选一枚红方棋子');
@@ -838,6 +868,16 @@ levelGridEl.addEventListener('click', (event) => {
   showToast('难度：' + LEVELS[level].name);
 });
 
+duoGridEl.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-duo]');
+  if (!btn || thinking) return;
+  const next = btn.dataset.duo === '1';
+  if (next === duo) return;
+  duo = next;
+  newGame();
+  showToast(duo ? '双人同屏：红蓝轮流走' : '打电脑：蓝方由电脑应招');
+});
+
 undoButtonEl.addEventListener('click', () => undo());
 resetButtonEl.addEventListener('click', () => newGame());
 playAgainButtonEl.addEventListener('click', () => newGame());
@@ -847,7 +887,8 @@ window.doushouqi = {
   state: () => clone(game),
   history: () => history.map((m) => ({ ...m })),
   result: () => result && { ...result },
-  level: () => level
+  level: () => level,
+  duo: () => duo
 };
 
 game = initialState();
