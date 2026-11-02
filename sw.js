@@ -1,5 +1,5 @@
 /* 游艺场 Service Worker：外壳预缓存 + 导航兜底 */
-const VERSION = 'youyi-v2';
+const VERSION = 'youyi-v3';
 const CACHE = `youyi-${VERSION}`;
 
 const SHELL = [
@@ -49,6 +49,19 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
   if (!isSameOrigin(url)) return; // 跨域（PeerJS 等）交给网络
+
+  // monopoly10 原型：永远先取网络，避免改了代码还看到旧版
+  if (url.pathname.includes('/monopoly10/')) {
+    event.respondWith((async () => {
+      try {
+        return await fetch(new Request(req, { cache: 'no-store' }));
+      } catch (_) {
+        const cache = await caches.open(CACHE);
+        return (await cache.match(req)) || Response.error();
+      }
+    })());
+    return;
+  }
 
   // 页面导航：先网络，失败再回缓存
   if (req.mode === 'navigate') {

@@ -155,7 +155,22 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script>
+  // 原型阶段：旧版 Service Worker 会把上一版的 app.mjs 缓存住，导致“按钮点不动”。
+  // 第一次打开时注销它并自动刷新一次，之后不再打扰。
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (list) {
+      var seen = localStorage.getItem('mono10-sw-cleared');
+      if (list.length && !seen) {
+        localStorage.setItem('mono10-sw-cleared', '1');
+        Promise.all(list.map(function (r) { return r.unregister(); })).then(function () {
+          location.reload();
+        });
+      }
+    }).catch(function () {});
+  }
+</script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<script type="module" src="./render/app.mjs"></script>
+<script type="module" src="./render/app.mjs?v=3"></script>
 </body>
 </html>
