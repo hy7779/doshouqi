@@ -1,5 +1,5 @@
 /* 游艺场 Service Worker：外壳预缓存 + 导航兜底 */
-const VERSION = 'youyi-v1';
+const VERSION = 'youyi-v2';
 const CACHE = `youyi-${VERSION}`;
 
 const SHELL = [

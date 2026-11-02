@@ -584,7 +584,13 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    return s && s.board && s.players ? s : null;
+    if (!s || !s.board || !s.players) return null;
+    // 地价与当前配置对不上 → 视为旧存档，直接丢弃（否则会看到上一版的价格）
+    const tile = s.tiles?.find((t) => t.kind === 'small');
+    const tiers = ruleset.land.small.tiers;
+    if (!tile || !tiers.includes(tile.price)) return null;
+    if (s.ruleset?.economy?.initialCash !== ruleset.economy.initialCash) return null;
+    return s;
   } catch (_) { return null; }
 }
 
