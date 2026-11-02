@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1a17">
+<meta name="color-scheme" content="dark">
+<title>斗兽棋 · 选择模式</title>
+<meta name="description" content="斗兽棋三种下法：和朋友联机、和电脑单机、和 DSH 人机。">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180">
+<style>
+  :root {
+    --ink: #ece4d4; --ink-dim: #a89b86; --bg: #0f1a17;
+    --line: #2c4038; --gold: #d9b26a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 600px at 85% -10%, #1e342c 0%, transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, #1a2a35 0%, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  .shell { width: min(1060px, 100%); margin: 0 auto; padding: 34px 20px 48px; }
+
+  .back {
+    display: inline-flex; align-items: center; gap: 7px;
+    margin-bottom: 26px; font-size: 13px; color: var(--ink-dim);
+    transition: color .15s ease, gap .15s ease;
+  }
+  .back:hover { color: var(--gold); gap: 10px; }
+
+  .kicker { margin: 0; font-size: 12px; letter-spacing: .38em; color: var(--ink-dim); text-transform: uppercase; }
+  h1 { font-size: clamp(28px, 5vw, 44px); margin: 10px 0 6px; letter-spacing: .1em; font-weight: 600; }
+  .lede { color: #bdb09a; margin: 0 0 32px; max-width: 34em; font-size: 15px; }
+
+  .modes { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 900px) { .modes { grid-template-columns: 1fr; } }
+
+  .mode {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; min-height: 258px; padding: 22px;
+    text-align: left; font: inherit; color: inherit;
+    border: 1px solid var(--line); border-radius: 20px;
+    background: linear-gradient(165deg, #182a23, #121e1a);
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .mode::after {
+    content: ""; position: absolute; inset: -40% -20% auto auto;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, var(--glow) 0%, transparent 65%);
+    opacity: .5; pointer-events: none;
+  }
+  .mode:hover { transform: translateY(-3px); border-color: #4a6a5c; box-shadow: 0 26px 50px -32px #000; }
+  .mode:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  .no {
+    position: absolute; top: 20px; right: 22px;
+    font-size: 12px; letter-spacing: .22em; color: #5d7468;
+    font-variant-numeric: tabular-nums;
+  }
+  .glyph { font-size: 30px; line-height: 1; }
+  .mode h2 { margin: 6px 0 0; font-size: 20px; letter-spacing: .06em; font-weight: 600; }
+  .mode p { margin: 0; color: #b3a692; font-size: 13.5px; }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
+  .tag { font-size: 11px; padding: 3px 9px; border-radius: 99px; border: 1px solid #35503f; color: #9fb3a5; }
+  .tag.gold { color: var(--gold); border-color: #6b5733; }
+  .tag.dim { color: #8d8271; border-color: #3a4b41; }
+
+  .go { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--gold); }
+  .go::after { content: "→"; transition: transform .18s ease; }
+  .mode:hover .go::after { transform: translateX(4px); }
+  .mode-third[aria-expanded="true"] .go::after { transform: rotate(90deg); }
+
+  .local-panel {
+    margin-top: 16px; padding: 20px 22px;
+    border: 1px solid #3a4b41; border-radius: 16px;
+    background: rgba(12, 24, 20, .6);
+    font-size: 13.5px; color: #b3a692;
+  }
+  .local-panel[hidden] { display: none; }
+  .local-panel h3 { margin: 0 0 8px; font-size: 15px; letter-spacing: .05em; color: #e3d8c2; font-weight: 600; }
+  .local-panel p { margin: 0 0 10px; }
+  .local-panel p:last-child { margin-bottom: 0; }
+  .local-panel pre {
+    margin: 10px 0; padding: 12px 14px;
+    border: 1px solid #2c4038; border-radius: 10px;
+    background: #0b1613; overflow-x: auto;
+  }
+  .local-panel code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: #cfc2a8; }
+  .local-panel pre code { color: #d9c9a6; }
+
+  .note { margin: 30px 0 0; font-size: 12.5px; color: #7e9187; }
+  .note b { color: #9fb3a5; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="back" href="./">← 游艺场</a>
+
+  <p class="kicker">Dou Shou Qi</p>
+  <h1>斗兽棋</h1>
+  <p class="lede">七列九行，鼠猫狗狼豹虎狮象。三种下法，选一种开始。</p>
+
+  <div class="modes">
+    <a class="mode" href="./webrtc.html" style="--glow:#3d4f8a66">
+      <span class="no">01</span>
+      <div class="glyph" aria-hidden="true">🌐</div>
+      <h2>联机对战</h2>
+      <p>开一间房，把六位邀请码发给朋友。P2P 直连，各执一色隔空对弈。</p>
+      <div class="tags">
+        <span class="tag gold">需联网</span>
+        <span class="tag">邀请码</span>
+        <span class="tag">P2P</span>
+      </div>
+      <span class="go">开房 / 加入</span>
+    </a>
+
+    <a class="mode" href="./offline/ai-local.html" style="--glow:#6b4a2f66">
+      <span class="no">02</span>
+      <div class="glyph" aria-hidden="true">🤖</div>
+      <h2>单机对战</h2>
+      <p>和电脑下。四档难度、悔棋、棋谱，全在浏览器里算，断网也能玩。</p>
+      <div class="tags">
+        <span class="tag gold">离线可玩</span>
+        <span class="tag">四档难度</span>
+        <span class="tag">有棋谱</span>
+      </div>
+      <span class="go">开始对局</span>
+    </a>
+
+    <button class="mode mode-third" type="button" id="localMode" aria-expanded="false" aria-controls="localPanel" style="--glow:#2f6b5a66">
+      <span class="no">03</span>
+      <div class="glyph" aria-hidden="true">🧠</div>
+      <h2>人机对弈</h2>
+      <p>对手是 DSH 智能体。中转服务跑在你自己电脑上，所以线上打不开。</p>
+      <div class="tags">
+        <span class="tag dim">需本地运行</span>
+        <span class="tag">DSH</span>
+      </div>
+      <span class="go" id="localGo">查看怎么跑</span>
+    </button>
+  </div>
+
+  <section class="local-panel" id="localPanel" hidden>
+    <h3>这一版要在你自己的电脑上跑</h3>
+    <p>棋盘在浏览器里，对手是 DSH 这个 agent，两边靠本机的一个小服务中转。线上站点没有那个服务，点进去只会一直显示「连接中」。</p>
+    <pre><code>cd doushouqi
+powershell -ExecutionPolicy Bypass -File .\start.ps1</code></pre>
+    <p>启动后打开 <code>http://127.0.0.1:8765</code>，回 DSH 里说「来一局」或「绑定游戏」，然后在网页上执红先行。</p>
+  </section>
+
+  <p class="note">三个模式共用同一副棋盘、同一套规则。<b>联机</b>要联网，<b>单机</b>完全离线，<b>人机</b>需要本机服务。</p>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('localMode');
+    var panel = document.getElementById('localPanel');
+    var go = document.getElementById('localGo');
+
+    btn.addEventListener('click', function () {
+      var host = location.hostname;
+      var onLocalServer = location.protocol !== 'file:' && (host === '127.0.0.1' || host === 'localhost');
+
+      // 已经在本机服务上跑着，就直接进游戏
+      if (onLocalServer) {
+        location.href = './ai-doushouqi.html';
+        return;
+      }
+
+      var open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      go.textContent = open ? '收起' : '查看怎么跑';
+      if (open) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  })();
+</script>
+</body>
+</html>
