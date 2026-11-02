@@ -48,8 +48,20 @@
     font-size: 12px; opacity: 0; transition: .2s; pointer-events: none; }
   .hint.on { opacity: 1; }
 
-  #rotate { position: fixed; inset: 0; background: #08120f; z-index: 200; display: none;
-    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  #setup { position: fixed; inset: 0; background: #08120fe0; backdrop-filter: blur(5px);
+    display: grid; place-items: center; z-index: 150; }
+  #setup[hidden] { display: none; }
+  .setup-box { width: min(440px, 92vw); display: grid; gap: 14px; padding: 18px; }
+  .setup-box h2 { margin: 0; font-size: 16px; letter-spacing: .1em; }
+  .setup-box .row { display: flex; align-items: center; gap: 12px; }
+  .setup-box .row > span { width: 34px; color: var(--dim); font-size: 12px; }
+  .opts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .opts button { padding: 7px 11px; border-radius: 9px; border: 1px solid var(--line);
+    background: #17251f; font-size: 12px; }
+  .opts button.on { border-color: var(--gold); color: var(--gold); }
+  #setup button.primary { padding: 10px; border-radius: 10px; font-weight: 600; }
+
+  #rotate { position: fixed; inset: 0; background: #08120f; z-index: 200; display: none;    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
     color: var(--ink); font-size: 15px; letter-spacing: .1em; }
   #rotate .rot-icon { font-size: 42px; transform: rotate(90deg); }
   @media (orientation: portrait) and (max-width: 820px) {
@@ -103,6 +115,24 @@
 </div>
 
 <div class="hint" id="hint"></div>
+
+<div id="setup">
+  <div class="panel setup-box">
+    <h2>开一局</h2>
+    <div class="row"><span>地图</span><div class="opts" id="mapOpts">
+      <button data-map="small" class="on">小 50 格</button>
+      <button data-map="medium">中 90 格</button>
+      <button data-map="large">大 150 格</button>
+    </div></div>
+    <div class="row"><span>人数</span><div class="opts" id="countOpts">
+      <button data-n="2">2</button><button data-n="3">3</button>
+      <button data-n="4" class="on">4</button><button data-n="5">5</button>
+      <button data-n="6">6</button><button data-n="7">7</button><button data-n="8">8</button>
+    </div></div>
+    <button class="primary" id="startBtn" style="margin-top:6px">开始游戏</button>
+  </div>
+</div>
+
 <div id="rotate">
   <div class="rot-icon">📱</div>
   <div>请把手机横过来</div>

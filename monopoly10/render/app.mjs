@@ -8,6 +8,7 @@ import {
   bankDeposit, bankWithdrawAll, leaveBank, buyLottery, leaveLottery, magicDraw, leaveMagic,
 } from '../engine/engine.mjs';
 import { makeRuleset } from '../config/ruleset.mjs';
+import { MAPS } from '../config/maps.mjs';
 import { CHARACTER_LIST } from '../config/characters.mjs';
 import { CARD_LIST } from '../config/cards.mjs';
 import { GOD_MAP } from '../config/gods.mjs';
@@ -26,17 +27,47 @@ let hover = null;
 const PLAYERS = 4;
 const ruleset = makeRuleset('standard', { 'rules.mapId': 'small', 'rules.maxRounds': 30 });
 
-function newGame() {
+const setupChoice = { map: 'small', players: 4 };
+
+function newGame(mapId = setupChoice.map, players = setupChoice.players) {
+  const map = MAPS[mapId];
+  const rounds = map?.recommended?.rounds ?? 45;
+  const gameRuleset = makeRuleset('standard', { 'rules.mapId': mapId, 'rules.maxRounds': rounds });
   const chars = CHARACTER_LIST.map((c) => c.id);
-  const names = ['甲', '乙', '丙', '丁'];
+  const names = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛'];
   state = createGame({
-    ruleset,
-    mapId: 'small',
-    names: names.slice(0, PLAYERS),
+    ruleset: gameRuleset,
+    mapId,
+    names: names.slice(0, players),
     seed: (Date.now() % 100000) | 1,
-    characterIds: chars.slice(0, PLAYERS),
+    characterIds: chars.slice(0, players),
   });
+  targeting = null;
+  legalTiles = null;
+  anim = null;
   afterChange();
+}
+
+function showSetup() {
+  $('setup').hidden = false;
+  $('mapOpts').querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.map === setupChoice.map);
+    b.onclick = () => {
+      setupChoice.map = b.dataset.map;
+      $('mapOpts').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+  $('countOpts').querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('on', Number(b.dataset.n) === setupChoice.players);
+    b.onclick = () => {
+      setupChoice.players = Number(b.dataset.n);
+      $('countOpts').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+  $('startBtn').onclick = () => {
+    $('setup').hidden = true;
+    newGame();
+  };
 }
 
 function resize() {
@@ -597,11 +628,24 @@ function load() {
 /* ---------------- 启动 ---------------- */
 
 $('follow').onclick = () => { follow = !follow; updateFollowBtn(); if (follow) { centerOnCurrent(); draw(); } };
-$('newgame').onclick = newGame;
+$('newgame').onclick = showSetup;
 
 const saved = load();
-if (saved) { state = saved; }
-else { state = createGame({ ruleset, mapId: 'small', names: ['甲', '乙', '丙', '丁'], seed: 20261102, characterIds: CHARACTER_LIST.slice(0, 4).map((c) => c.id) }); }
+if (saved) {
+  state = saved;
+  setupChoice.map = saved.mapId || 'small';
+  setupChoice.players = saved.players.length;
+  $('setup').hidden = true;
+} else {
+  state = createGame({
+    ruleset,
+    mapId: 'small',
+    names: ['甲', '乙', '丙', '丁'],
+    seed: 20261102,
+    characterIds: CHARACTER_LIST.slice(0, 4).map((c) => c.id),
+  });
+  showSetup();
+}
 
 resize();
 centerOnCurrent();
