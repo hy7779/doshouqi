@@ -2002,8 +2002,9 @@ function canCaptureFast(board, from, rank, side, to) {
 }
 
 // ---------- 走法生成 ----------
-function genMoves(board, side) {
-  const out = [];
+// out 非空：把走法写进数组；out 为空：只累计数量/吃子价值/是否被吃鼠。
+// 两条路径共用同一段规则，避免“统计版”和“真生成版”悄悄分叉。
+function generateMoves(board, side, out, stats) {
   const ownDen = DEN_OF[side];
   for (let i = 0; i < N; i++) {
     const v = board[i];
@@ -2020,7 +2021,15 @@ function genMoves(board, side) {
         if (t > 0 === side > 0) continue;
         if (!canCaptureFast(board, i, rank, side, j)) continue;
       }
-      out.push((i << 6) | j);
+      if (out) out.push((i << 6) | j);
+      else {
+        stats.count++;
+        if (t !== 0) {
+          const r = t > 0 ? t : -t;
+          stats.capValue += BASE_VAL[r];
+          if (r === 1) stats.ratHit = 1;
+        }
+      }
     }
 
     if (rank === 6 || rank === 7) {
@@ -2041,15 +2050,35 @@ function genMoves(board, side) {
           if (t > 0 === side > 0) continue;
           if (!canCaptureFast(board, i, rank, side, to)) continue;
         }
-        out.push((i << 6) | to);
+        if (out) out.push((i << 6) | to);
+        else {
+          stats.count++;
+          if (t !== 0) {
+            const r = t > 0 ? t : -t;
+            stats.capValue += BASE_VAL[r];
+            if (r === 1) stats.ratHit = 1;
+          }
+        }
       }
     }
   }
+}
+
+function genMoves(board, side) {
+  const out = [];
+  generateMoves(board, side, out, null);
   return out;
 }
 
+// 只统计，不建数组：评估里算对手的机动性和吃子威胁用。
+function scanMoves(board, side) {
+  const stats = { count: 0, capValue: 0, ratHit: 0 };
+  generateMoves(board, side, null, stats);
+  return stats;
+}
+
 function hasMove(board, side) {
-  return genMoves(board, side).length > 0;
+  return scanMoves(board, side).count > 0;
 }
 
 // ---------- 评估：分数 = Σ(权重 × 特征) ----------
@@ -2095,19 +2124,12 @@ function extractFeatures(board, side) {
 function fillFeatures(out, board, side, ownMoves) {
   out.fill(0);
   const mine = ownMoves || genMoves(board, side);
-  const theirs = genMoves(board, -side);
+  const theirs = scanMoves(board, -side);
 
-  let riskOwn = 0;
+  let riskOwn = theirs.capValue;
+  let ratOwnHit = theirs.ratHit;
   let riskOpp = 0;
-  let ratOwnHit = 0;
   let ratOppHit = 0;
-  for (let k = 0; k < theirs.length; k++) {
-    const t = board[theirs[k] & 63];
-    if (t === 0) continue;
-    const rank = t > 0 ? t : -t;
-    riskOwn += BASE_VAL[rank];
-    if (rank === 1) ratOwnHit = 1;
-  }
   for (let k = 0; k < mine.length; k++) {
     const t = board[mine[k] & 63];
     if (t === 0) continue;
@@ -2138,7 +2160,7 @@ function fillFeatures(out, board, side, ownMoves) {
     }
   }
 
-  out[FI.mobility] = mine.length - theirs.length;
+  out[FI.mobility] = mine.length - theirs.count;
   out[FI.risk] = riskOwn - riskOpp;
   out[FI.denPressure] = denPressure;
   out[FI.denThreat] = denThreat;
@@ -2169,13 +2191,24 @@ const DEN_EXT = 4;
 const ABORT = { abort: true };
 const nowMs = () => Date.now();
 
-function orderMoves(board, moves, side, ttMove, history) {
+function orderMoves(ctx, board, moves, side, ttMove, ply) {
+  const history = ctx.history;
+  const k1 = ctx.killers[ply * 2];
+  const k2 = ctx.killers[ply * 2 + 1];
   const n = moves.length;
   const scores = new Int32Array(n);
   for (let k = 0; k < n; k++) {
     const m = moves[k];
     if (m === ttMove) {
       scores[k] = 1 << 30;
+      continue;
+    }
+    if (m === k1) {
+      scores[k] = 90000;
+      continue;
+    }
+    if (m === k2) {
+      scores[k] = 80000;
       continue;
     }
     const to = m & 63;
@@ -2224,7 +2257,7 @@ function qsearch(ctx, board, side, alpha, beta, ply) {
   }
   if (caps.length === 0) return alpha;
 
-  orderMoves(board, caps, side, 0, ctx.history);
+  orderMoves(ctx, board, caps, side, 0, ply);
 
   for (let k = 0; k < caps.length; k++) {
     const m = caps[k];
@@ -2254,9 +2287,10 @@ function negamax(ctx, board, side, depth, alpha, beta, ply, ext) {
   }
   if (depth <= 0) return qsearch(ctx, board, side, alpha, beta, ply);
 
-  orderMoves(board, moves, side, ctx.tt, ctx.history);
+  orderMoves(ctx, board, moves, side, 0, ply);
 
   let best = -INF;
+  let first = true;
   for (let k = 0; k < moves.length; k++) {
     const m = moves[k];
     const from = m >> 6;
@@ -2274,32 +2308,49 @@ function negamax(ctx, board, side, depth, alpha, beta, ply, ext) {
       childExt = ext - 1;
     }
 
-    const score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, ply + 1, childExt);
+    let score;
+    if (first) {
+      score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, ply + 1, childExt);
+      first = false;
+    } else {
+      // PVS：先用零窗口确认“不会比 alpha 更好”，真的更好再全窗口重搜。
+      score = -negamax(ctx, board, -side, childDepth, -alpha - 1, -alpha, ply + 1, childExt);
+      if (score > alpha && score < beta) {
+        score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, ply + 1, childExt);
+      }
+    }
     board[from] = board[to];
     board[to] = captured;
 
     if (score > best) best = score;
     if (score > alpha) {
       alpha = score;
-      if (ply === 0) ctx.bestRoot = m;
-      ctx.tt = m;
       if (captured === 0) ctx.history[m] += depth * depth;
     }
-    if (alpha >= beta) break;
+    if (alpha >= beta) {
+      if (captured === 0) {
+        const kk = ctx.killers;
+        if (kk[ply * 2] !== m) {
+          kk[ply * 2 + 1] = kk[ply * 2];
+          kk[ply * 2] = m;
+        }
+      }
+      break;
+    }
   }
   return best;
 }
 
-// 根节点单独处理，方便做"上一轮最佳走法优先"和难度削弱。
-function rootSearch(ctx, board, side, depth) {
+// 根节点单独处理，方便做"上一轮最佳走法优先"、PVS 和 aspiration window。
+function rootSearch(ctx, board, side, depth, alphaIn, betaIn) {
   const enemyDen = ENEMY_DEN[side];
   const moves = genMoves(board, side);
-  orderMoves(board, moves, side, ctx.bestRoot, ctx.history);
+  orderMoves(ctx, board, moves, side, ctx.bestRoot, 0);
 
   let best = -INF;
   let bestMove = moves[0];
-  let alpha = -INF;
-  const beta = INF;
+  let alpha = alphaIn;
+  const beta = betaIn;
 
   for (let k = 0; k < moves.length; k++) {
     const m = moves[k];
@@ -2317,7 +2368,15 @@ function rootSearch(ctx, board, side, depth) {
         childDepth = depth;
         childExt = DEN_EXT - 1;
       }
-      score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, 1, childExt);
+      if (k === 0) {
+        score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, 1, childExt);
+      } else {
+        // PVS：零窗口试探，真的比当前最好还好再全窗口重搜。
+        score = -negamax(ctx, board, -side, childDepth, -alpha - 1, -alpha, 1, childExt);
+        if (score > alpha && score < beta) {
+          score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, 1, childExt);
+        }
+      }
     }
     board[from] = board[to];
     board[to] = captured;
@@ -2327,6 +2386,7 @@ function rootSearch(ctx, board, side, depth) {
       bestMove = m;
     }
     if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
   }
   return { move: bestMove, score: best };
 }
@@ -2358,7 +2418,7 @@ function searchMove(state, options = {}) {
     nodes: 0,
     deadline: start + Math.max(30, timeMs),
     history: new Int32Array(N * 64),
-    tt: 0,
+    killers: new Int32Array(2 * 128),
     bestRoot: 0,
   };
 
@@ -2372,10 +2432,23 @@ function searchMove(state, options = {}) {
 
   let best = { move: rootMoves[0], score: 0 };
   let depthDone = 0;
+  const ASP = 80;
 
   for (let d = 1; d <= maxDepth; d++) {
     try {
-      const result = rootSearch(ctx, board, side, d);
+      let lo = -INF;
+      let hi = INF;
+      const useAsp = d > 1 && Math.abs(best.score) < MATE - 1000;
+      if (useAsp) {
+        lo = best.score - ASP;
+        hi = best.score + ASP;
+      }
+      let result = rootSearch(ctx, board, side, d, lo, hi);
+      // 窗口外说明上一层的分数估计偏了，放宽到全窗口重搜一次。
+      if (useAsp && (result.score <= lo || result.score >= hi)) {
+        ctx.bestRoot = result.move;
+        result = rootSearch(ctx, board, side, d, -INF, INF);
+      }
       best = result;
       depthDone = d;
       ctx.bestRoot = result.move;
