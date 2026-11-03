@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>斗兽棋 · 赐福模式（本地原型）</title>
+<style>
+  :root {
+    --ink: #ece4d4; --dim: #a89b86; --bg: #0e1714; --line: #2c4038;
+    --gold: #d9b26a; --red: #a8353a; --blue: #3165a3;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: radial-gradient(900px 600px at 85% -10%, #1e342c 0%, transparent 60%),
+                radial-gradient(800px 500px at -10% 110%, #1a2a35 0%, transparent 55%), var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 14px 14px 30px;
+  }
+  .app { max-width: 1180px; margin: 0 auto; }
+  .bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .bar h1 { font-size: 18px; margin: 0; letter-spacing: .06em; font-weight: 600; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 99px; border: 1px solid #6b5733; color: var(--gold); margin-left: 6px; vertical-align: 2px; }
+  .turn { font-size: 13px; color: var(--dim); margin-left: auto; }
+  .turn b { color: var(--ink); font-weight: 600; }
+  .turn.red b { color: #e8948c; }
+  .turn.blue b { color: #93bdf0; }
+  button {
+    font: inherit; font-size: 12.5px; color: var(--gold); background: #1c2b24;
+    border: 1px solid #6b5733; border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  }
+  button:hover { background: #24372e; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; margin-top: 14px; align-items: start; }
+  @media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+
+  .board-wrap { width: min(100%, calc((100vh - 158px) * 7 / 9)); margin: 0 auto; }
+  .board { display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(9, 1fr);
+           gap: 2px; background: #3d2f24; padding: 5px; border-radius: 12px; aspect-ratio: 7/9; }
+  .cell { position: relative; border-radius: 3px; background: #efe1c6; display: grid; place-items: center;
+          cursor: default; overflow: hidden; user-select: none; }
+  .cell.river { background: #2f748d; }
+  .cell.den { box-shadow: inset 0 0 0 2px #c9a15c; }
+  .cell.trap-red { box-shadow: inset 0 0 0 3px rgba(168,53,58,.9); background-color: #f3dcd8; }
+  .cell.trap-blue { box-shadow: inset 0 0 0 3px rgba(49,101,163,.9); background-color: #dbe7f4; }
+  .cell.trap-high { background-image: repeating-linear-gradient(45deg, rgba(0,0,0,.07) 0 4px, transparent 4px 8px); }
+  .cell.sel { box-shadow: inset 0 0 0 3px #d9b26a; }
+  .cell.move { background-color: #cfe3c8; cursor: pointer; }
+  .cell.move::after { content: ""; width: 22%; height: 22%; border-radius: 50%; background: #4e7a4a; opacity: .75; position: absolute; }
+  .cell.cap { background-color: #e6bcb4; cursor: pointer; box-shadow: inset 0 0 0 2px #a8353a; }
+  .cell.target { box-shadow: inset 0 0 0 3px #d9b26a; cursor: pointer; }
+
+  .piece { position: relative; z-index: 2; width: 78%; height: 78%; border-radius: 50%; display: flex;
+           flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+           font-size: clamp(10px, 2.1vw, 16px); font-weight: 600; }
+  .piece.red { background: radial-gradient(circle at 35% 28%, #f7ded8, #e9b3aa 55%, #cf8d84); color: #7d1f22; }
+  .piece.blue { background: radial-gradient(circle at 35% 28%, #e2ecf8, #b9d0e9 55%, #93b3d6); color: #1b3f68; }
+  .piece .num { font-size: .62em; opacity: .85; font-variant-numeric: tabular-nums; }
+  .trap-tag { position: absolute; right: 2px; bottom: 2px; font-size: 10px; z-index: 3; opacity: 1;
+              background: rgba(255,255,255,.82); border-radius: 4px; padding: 0 3px; font-weight: 600; }
+  .flag-tag { position: absolute; left: 2px; top: 1px; z-index: 3; font-size: 8.5px; letter-spacing: .02em;
+              background: rgba(0,0,0,.35); color: #ffe6b0; border-radius: 3px; padding: 0 2px; }
+
+  aside { display: flex; flex-direction: column; gap: 12px; }
+  .panel { border: 1px solid var(--line); border-radius: 14px; background: rgba(12,24,20,.55); padding: 12px 14px; }
+  .panel h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .18em; color: #8f8065; font-weight: 500; }
+  .rank-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 0; }
+  .rank-row .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .rank-row .dot.red { background: #c25a52; } .rank-row .dot.blue { background: #5a8ec2; }
+  .rank-row .r { margin-left: auto; font-variant-numeric: tabular-nums; color: #d7c9ab; }
+  .rank-row .r.neg { color: #e08a80; }
+  .rank-row .tags { font-size: 9.5px; color: #97a292; }
+  .owned { font-size: 12px; color: #b3a692; }
+  .owned div { padding: 1px 0; }
+  .owned .side { color: #8f8065; margin-top: 6px; font-size: 11px; }
+  #log { font-size: 11.5px; color: #9fae9f; max-height: 150px; overflow: auto; }
+  #log div { padding: 1px 0; border-bottom: 1px dashed #1e2b25; }
+  .msg { margin-top: 10px; font-size: 12.5px; color: #e0b48a; min-height: 18px; }
+  .hintbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12.5px; color: #d9c9a6; }
+  .hintbar[hidden] { display: none; }
+
+  .modal { position: fixed; inset: 0; background: rgba(6,12,10,.82); display: grid; place-items: center; z-index: 50; padding: 18px; }
+  .modal[hidden] { display: none; }
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; width: 100%; }
+  @media (max-width: 720px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    text-align: left; border: 1px solid #3a4b41; border-radius: 16px; padding: 16px; background: linear-gradient(165deg, #182a23, #121e1a);
+    color: var(--ink); cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-height: 170px;
+  }
+  .card:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .card .cat { font-size: 10px; letter-spacing: .2em; color: #8f8065; }
+  .card h4 { margin: 0; font-size: 16px; letter-spacing: .04em; }
+  .card p { margin: 0; font-size: 12.5px; color: #b3a692; }
+  .card .who { margin-top: auto; font-size: 11px; color: var(--gold); }
+  .modal-title { text-align: center; margin-bottom: 14px; font-size: 13px; color: var(--dim); letter-spacing: .1em; }
+
+  .start { position: fixed; inset: 0; background: rgba(6,12,10,.9); display: grid; place-items: center; z-index: 60; padding: 18px; }
+  .start[hidden] { display: none; }
+  .start-box { width: min(460px, 100%); border: 1px solid #3a4b41; border-radius: 16px; background: #101d18; padding: 20px 22px; display: grid; gap: 10px; }
+  .start-box h2 { margin: 0; font-size: 17px; letter-spacing: .06em; }
+  .start-box .sub { margin: -4px 0 6px; font-size: 11.5px; color: var(--dim); }
+  .start-box .row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #c9bda4; }
+  .start-box .row > span { flex: 1; }
+  .start-box input[type="number"] {
+    width: 64px; font: inherit; font-size: 12.5px; text-align: center; color: var(--ink);
+    background: #0b1613; border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px;
+  }
+  .start-box input[type="checkbox"] { width: 16px; height: 16px; accent-color: #b08a4e; }
+  .start-box button.primary {
+    margin-top: 6px; padding: 10px; border-radius: 10px; border-color: #c9a15c;
+    background: linear-gradient(180deg, #d9b26a, #b8904c); color: #221a0d; font-weight: 600; font-size: 14px;
+  }
+  .start-box button.primary:hover { filter: brightness(1.05); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <h1>斗兽棋 · 赐福模式<span class="badge">本地双人原型</span></h1>
+    <div class="turn" id="turn">—</div>
+    <button id="restart">重新开局</button>
+  </div>
+
+  <main>
+    <section>
+      <div class="board-wrap"><div class="board" id="board"></div></div>
+      <div class="msg" id="msg"></div>
+      <div class="hintbar" id="hintbar" hidden>
+        <span id="hinttext"></span>
+        <button id="cancelPick">取消</button>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h3>战力榜</h3>
+        <div id="ranks"></div>
+      </section>
+      <section class="panel">
+        <h3>已成赐福</h3>
+        <div class="owned" id="owned"></div>
+      </section>
+      <section class="panel">
+        <h3>交手记录</h3>
+        <div id="log"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="start" id="start" hidden>
+  <div class="start-box">
+    <h2>创建对局</h2>
+    <p class="sub">这些就是规则书里「创建房间」时的可选项</p>
+    <label class="row"><span>开局赐福次数（0–9）</span><input type="number" id="set-open" min="0" max="9" value="2"></label>
+    <label class="row"><span>双方三选一同组</span><input type="checkbox" id="set-same" checked></label>
+    <label class="row"><span>双方池子同类型</span><input type="checkbox" id="set-pool"></label>
+    <label class="row"><span>中局赐福</span><input type="checkbox" id="set-mid" checked></label>
+    <label class="row"><span>每走 N 手触发（0=关）</span><input type="number" id="set-t1e" min="0" max="30" value="3"></label>
+    <label class="row"><span>回合触发上限</span><input type="number" id="set-t1m" min="0" max="99" value="4"></label>
+    <label class="row"><span>最大子被吃触发上限</span><input type="number" id="set-t2m" min="0" max="99" value="3"></label>
+    <label class="row"><span>踩对方陷阱触发上限</span><input type="number" id="set-t3m" min="0" max="99" value="3"></label>
+    <button class="primary" id="btn-start">开始对局</button>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div>
+    <div class="modal-title" id="modalTitle">选一个赐福</div>
+    <div class="cards" id="cards"></div>
+  </div>
+</div>
+
+<script>
+window.BS = (function () {
+'use strict';
+// ============================================================
+// 斗兽棋 · 赐福模式 规则引擎
+//
+// 纯逻辑：不碰 DOM、不碰网络。状态是可直接 JSON 序列化的普通对象，
+// 方便通过 P2P 同步。
+//
+// 规则依据：../赐福模式规则.md
+// 与经典引擎（engine.mjs）的关系：本文件是独立的一层，不修改经典引擎。
+// ============================================================
+
+const GEO = {
+  cols: 7,
+  rows: 9,
+  rivers: [[2, 4, 3, 6], [5, 4, 6, 6]],
+  dens: { red: { x: 4, y: 9 }, blue: { x: 4, y: 1 } },
+  // 原版兽穴旁最高级陷阱
+  maxTraps: {
+    red: [{ x: 3, y: 9 }, { x: 5, y: 9 }, { x: 4, y: 8 }],
+    blue: [{ x: 3, y: 1 }, { x: 5, y: 1 }, { x: 4, y: 2 }],
+  },
+};
+
+const KIND = {
+  rat: { rank: 1, name: '鼠' },
+  cat: { rank: 2, name: '猫' },
+  dog: { rank: 3, name: '狗' },
+  wolf: { rank: 4, name: '狼' },
+  leopard: { rank: 5, name: '豹' },
+  tiger: { rank: 6, name: '虎' },
+  lion: { rank: 7, name: '狮' },
+  elephant: { rank: 8, name: '象' },
+};
+
+const SIDE_NAME = { red: '红方', blue: '蓝方' };
+const other = (s) => (s === 'red' ? 'blue' : 'red');
+
+const keyOf = (x, y) => x + ',' + y;
+const inside = (x, y) => x >= 1 && x <= GEO.cols && y >= 1 && y <= GEO.rows;
+const isRiver = (x, y) =>
+  GEO.rivers.some(([x1, y1, x2, y2]) => x >= x1 && x <= x2 && y >= y1 && y <= y2);
+const isDen = (x, y, side) => GEO.dens[side].x === x && GEO.dens[side].y === y;
+
+// 地区：y>=7 红方地区，y<=3 蓝方地区，其余中立
+function regionOf(x, y) {
+  if (y >= 7) return 'red';
+  if (y <= 3) return 'blue';
+  return 'neutral';
+}
+
+const DEFAULT_SETTINGS = {
+  openCount: 1,      // 开局赐福次数 x（0-9）
+  sameOffers: true,  // 双方三选一同组
+  samePool: false,   // 双方池子同类型（未实现细分，暂留字段）
+  midgame: true,
+  t1Every: 3,        // 每走 y 手触发
+  t1Max: 5,
+  t2: true,
+  t2Max: 3,
+  t3: true,
+  t3Max: 3,
+};
+
+// ---------- 开局 ----------
+function makePiece(id, side, kind, x, y) {
+  return {
+    id,
+    side,
+    kind,
+    rank: KIND[kind].rank,
+    x,
+    y,
+    alive: true,
+    flags: {
+      rat: kind === 'rat',
+      pseudoRat: false,
+      swim: kind === 'rat',
+      jump: kind === 'tiger' || kind === 'lion',
+    },
+  };
+}
+
+// 阵型与经典模式一致（x 1..7 左→右，y 1..9 上→下，红在下）
+const LAYOUT = {
+  red: [
+    ['tiger', 1, 9], ['lion', 7, 9],
+    ['cat', 2, 8], ['dog', 6, 8],
+    ['elephant', 1, 7], ['wolf', 3, 7], ['leopard', 5, 7], ['rat', 7, 7],
+  ],
+  blue: [
+    ['lion', 1, 1], ['tiger', 7, 1],
+    ['dog', 2, 2], ['cat', 6, 2],
+    ['rat', 1, 3], ['leopard', 3, 3], ['wolf', 5, 3], ['elephant', 7, 3],
+  ],
+};
+
+function createMatch(settings = {}) {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const pieces = [];
+  let n = 0;
+  for (const side of ['red', 'blue']) {
+    for (const [kind, x, y] of LAYOUT[side]) pieces.push(makePiece(`${side}-${++n}`, side, kind, x, y));
+  }
+
+  const traps = {};
+  for (const side of ['red', 'blue']) {
+    for (const t of GEO.maxTraps[side]) traps[keyOf(t.x, t.y)] = { owner: side, level: 'max' };
+  }
+
+  return {
+    settings: s,
+    pieces,
+    traps,
+    turn: 'red',
+    ply: 0,
+    movesBySide: { red: 0, blue: 0 },
+    blessings: { red: [], blue: [] },
+    triggersLeft: {
+      red: { t1: s.t1Max, t2: s.t2Max, t3: s.t3Max },
+      blue: { t1: s.t1Max, t2: s.t2Max, t3: s.t3Max },
+    },
+    phase: s.openCount > 0 ? 'opening' : 'playing',
+    openRound: 1,
+    openPicks: { red: 0, blue: 0 },
+    sharedOffers: null,
+    poolCategory: null,
+    pending: null,
+    queue: [],
+    winner: null,
+    reason: null,
+    log: [],
+  };
+}
+
+// ---------- 查询 ----------
+const pieceAt = (st, x, y) =>
+  st.pieces.find((p) => p.alive && p.x === x && p.y === y) || null;
+
+const alivePieces = (st, side) => st.pieces.filter((p) => p.alive && p.side === side);
+
+function maxRank(st, side) {
+  let m = -Infinity;
+  for (const p of st.pieces) {
+    if (!p.alive || p.side !== side) continue;
+    if (p.rank > m) m = p.rank;
+  }
+  return m;
+}
+
+const trapAt = (st, x, y) => st.traps[keyOf(x, y)] || null;
+
+// 伪等级：只在“被吃”判定时使用
+function pseudoRank(st, p) {
+  const t = trapAt(st, p.x, p.y);
+  if (!t || t.owner === p.side) return p.rank;
+  if (t.level === 'max') return -Infinity;
+  if (t.level === 'high') return p.rank - 3;
+  return p.rank - 1;
+}
+
+const hasRatPrivilege = (p) => p.flags.rat || p.flags.pseudoRat;
+
+// ---------- 吃子判定 ----------
+function canCapture(st, atk, def) {
+  if (!def || atk.side === def.side) return false;
+
+  // ① 水域：水陆不互通
+  const ar = isRiver(atk.x, atk.y);
+  const dr = isRiver(def.x, def.y);
+  if (ar !== dr) return false;
+
+  // ② 鼠免疫（绝对）
+  if (def.flags.rat && atk.rank === maxRank(st, atk.side)) return false;
+
+  // ③ 鼠特权 / 伪鼠特权
+  if (hasRatPrivilege(atk) && def.rank === maxRank(st, def.side)) return true;
+
+  // ④ 比大小
+  return atk.rank >= pseudoRank(st, def);
+}
+
+// ---------- 走法 ----------
+function movesOf(st, p) {
+  const out = [];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const canSwim = p.flags.swim;
+
+  for (const [dx, dy] of dirs) {
+    const x = p.x + dx;
+    const y = p.y + dy;
+    if (!inside(x, y)) continue;
+    if (isDen(x, y, p.side)) continue;
+    if (isRiver(x, y) && !canSwim) continue;
+    const q = pieceAt(st, x, y);
+    if (q && q.side === p.side) continue;
+    if (q && !canCapture(st, p, q)) continue;
+    out.push({ x, y, capture: !!q });
+  }
+
+  if (p.flags.jump && !isRiver(p.x, p.y)) {
+    for (const [dx, dy] of dirs) {
+      let x = p.x;
+      let y = p.y;
+      const path = [];
+      let land = null;
+      for (;;) {
+        x += dx;
+        y += dy;
+        if (!inside(x, y)) break;
+        if (!isRiver(x, y)) { land = { x, y }; break; }
+        path.push({ x, y });
+      }
+      if (!land || path.length < 2) continue;
+      if (path.some((c) => pieceAt(st, c.x, c.y))) continue;   // 河道里任意棋子都阻断
+      const q = pieceAt(st, land.x, land.y);
+      if (q && q.side === p.side) continue;
+      if (q && !canCapture(st, p, q)) continue;
+      out.push({ x: land.x, y: land.y, capture: !!q, jump: true });
+    }
+  }
+
+  return out;
+}
+
+function hasAnyMove(st, side) {
+  return alivePieces(st, side).some((p) => movesOf(st, p).length > 0);
+}
+
+// ---------- 落子 ----------
+function applyMove(st, from, to) {
+  if (st.phase !== 'playing') return { ok: false, error: '现在不是走棋阶段' };
+  if (st.winner) return { ok: false, error: '对局已结束' };
+
+  const p = pieceAt(st, from.x, from.y);
+  if (!p) return { ok: false, error: '这一格没有棋子' };
+  if (p.side !== st.turn) return { ok: false, error: '还没轮到这一方' };
+
+  const mv = movesOf(st, p).find((m) => m.x === to.x && m.y === to.y);
+  if (!mv) return { ok: false, error: '这一步不合法' };
+
+  const victim = mv.capture ? pieceAt(st, to.x, to.y) : null;
+  const victimSide = victim ? victim.side : null;
+  const victimWasMax = victim ? victim.rank === maxRank(st, victimSide) : false;
+  const victimRank = victim ? victim.rank : null;
+  const victimKind = victim ? victim.kind : null;
+
+  if (victim) victim.alive = false;
+  p.x = to.x;
+  p.y = to.y;
+
+  st.ply++;
+  st.movesBySide[p.side]++;
+  st.log.push({
+    side: p.side, kind: p.kind, rank: p.rank,
+    from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y },
+    captured: victimKind, capturedRank: victimRank,
+  });
+
+  const queued = [];
+  const mover = p.side;
+  const foe = other(mover);
+
+  // 胜负
+  if (isDen(to.x, to.y, foe)) {
+    st.winner = mover;
+    st.reason = '进入对方兽穴';
+    st.phase = 'over';
+    return { ok: true, winner: mover, reason: st.reason, queued };
+  }
+  if (alivePieces(st, foe).length === 0) {
+    st.winner = mover;
+    st.reason = '对方没有棋子';
+    st.phase = 'over';
+    return { ok: true, winner: mover, reason: st.reason, queued };
+  }
+
+  // 触发判定（顺序 T1 → T2 → T3）
+  const s = st.settings;
+  if (s.midgame) {
+    const left = st.triggersLeft[mover];
+    if (s.t1Every > 0 && left.t1 > 0 && st.movesBySide[mover] % s.t1Every === 0) {
+      left.t1--;
+      queued.push({ side: mover, cause: 't1' });
+    }
+    const foeLeft = st.triggersLeft[foe];
+    if (s.t2 && victimWasMax && foeLeft.t2 > 0) {
+      foeLeft.t2--;
+      queued.push({ side: foe, cause: 't2' });
+    }
+    if (s.t3 && left.t3 > 0) {
+      const t = trapAt(st, to.x, to.y);
+      if (t && t.level === 'max' && t.owner === foe) {
+        left.t3--;
+        queued.push({ side: mover, cause: 't3' });
+      }
+    }
+  }
+
+  st.turn = foe;
+  st.queue.push(...queued);
+
+  if (!hasAnyMove(st, foe)) {
+    st.winner = mover;
+    st.reason = '对方无子可走';
+    st.phase = 'over';
+    return { ok: true, winner: mover, reason: st.reason, queued };
+  }
+
+  // 进入赐福阶段
+  if (st.queue.length) {
+    st.phase = 'blessing';
+    startNextPending(st);
+  }
+
+  return { ok: true, winner: null, queued };
+}
+
+// ---------- 赐福池 ----------
+const BEASTS = ['elephant', 'lion', 'tiger', 'leopard', 'wolf', 'dog', 'cat'];
+const BEAST_ZH = { elephant: '象', lion: '狮', tiger: '虎', leopard: '豹', wolf: '狼', dog: '狗', cat: '猫' };
+
+function buildCatalog() {
+  const list = [];
+  const pad = (n) => String(n).padStart(2, '0');
+
+  // 等级类
+  list.push({ id: 'L01', name: '全体重塑·己', cat: 'level', weight: 10, effect: { type: 'all', side: 'own', delta: +1 } });
+  list.push({ id: 'L02', name: '全体重塑·敌', cat: 'level', weight: 10, effect: { type: 'all', side: 'enemy', delta: -1 } });
+  list.push({ id: 'L03', name: '极端偏科·己', cat: 'level', weight: 10, effect: { type: 'single', side: 'own', delta: +3 } });
+  list.push({ id: 'L04', name: '极端偏科·敌', cat: 'level', weight: 10, effect: { type: 'single', side: 'enemy', delta: -3 } });
+  list.push({ id: 'L05', name: '自削以伤人', cat: 'level', weight: 10, effect: { type: 'combo', ownAll: -1, enemySingle: -2 } });
+  list.push({ id: 'L06', name: '自增以养敌', cat: 'level', weight: 10, effect: { type: 'combo', ownAll: +1, enemySingle: +3 } });
+  list.push({ id: 'L07', name: '鼠王强化', cat: 'level', weight: 10, effect: { type: 'piece', side: 'own', kind: 'rat', delta: +2 } });
+  list.push({ id: 'L08', name: '鼠王削弱', cat: 'level', weight: 10, effect: { type: 'piece', side: 'enemy', kind: 'rat', delta: -1 } });
+
+  let n = 9;
+  for (const k of BEASTS) {
+    list.push({ id: `L${pad(n++)}`, name: `${BEAST_ZH[k]}王强化`, cat: 'level', weight: 10, effect: { type: 'piece', side: 'own', kind: k, delta: +2 } });
+    list.push({ id: `L${pad(n++)}`, name: `${BEAST_ZH[k]}王削弱`, cat: 'level', weight: 10, effect: { type: 'piece', side: 'enemy', kind: k, delta: -1 } });
+  }
+
+  // 逻辑类
+  list.push({ id: 'G01', name: '寄生掠夺', cat: 'logic', weight: 1, effect: { type: 'flag', flag: 'pseudoRat', delta: -2, pick: 'any-non-rat' } });
+  let g = 2;
+  for (const k of BEASTS) {
+    list.push({ id: `G${pad(g++)}`, name: `寄生掠夺·${BEAST_ZH[k]}`, cat: 'logic', weight: 3, effect: { type: 'flag', flag: 'pseudoRat', delta: -2, kind: k } });
+  }
+  list.push({ id: 'G09', name: '下海', cat: 'logic', weight: 1, effect: { type: 'flag', flag: 'swim', delta: -3, pick: 'any-non-rat' } });
+  for (const k of BEASTS) {
+    list.push({ id: `G${pad(g++)}`, name: `下海·${BEAST_ZH[k]}`, cat: 'logic', weight: 3, effect: { type: 'flag', flag: 'swim', delta: -3, kind: k } });
+  }
+  list.push({ id: 'G17', name: '跳河', cat: 'logic', weight: 1, effect: { type: 'flag', flag: 'jump', delta: +1, pick: 'any-jumper' } });
+  for (const k of ['elephant', 'leopard', 'wolf', 'dog', 'cat']) {
+    list.push({ id: `G${pad(g++)}`, name: `跳河·${BEAST_ZH[k]}`, cat: 'logic', weight: 3, effect: { type: 'flag', flag: 'jump', delta: +1, kind: k } });
+  }
+
+  // 环境类
+  list.push({ id: 'E01', name: '指定陷阱·高级', cat: 'env', weight: 6, effect: { type: 'trap', level: 'high', area: 'any', count: 1, pick: true } });
+  list.push({ id: 'E02', name: '指定陷阱·低级', cat: 'env', weight: 6, effect: { type: 'trap', level: 'low', area: 'any', count: 1, pick: true } });
+  list.push({ id: 'E03', name: '随机陷阱·中立', cat: 'env', weight: 6, effect: { type: 'trap', level: 'low', area: 'neutral', count: 2 } });
+  list.push({ id: 'E04', name: '随机陷阱·我方', cat: 'env', weight: 6, effect: { type: 'trap', level: 'low', area: 'own', count: 1 } });
+  list.push({ id: 'E05', name: '随机陷阱·敌方', cat: 'env', weight: 6, effect: { type: 'trap', level: 'low', area: 'enemy', count: 1 } });
+
+  return list;
+}
+
+const CATALOG = buildCatalog();
+const byId = (id) => CATALOG.find((b) => b.id === id);
+
+// 该赐福此刻是否可抽到
+function isEligible(st, side, b) {
+  const foe = other(side);
+  const mine = alivePieces(st, side);
+  const theirs = alivePieces(st, foe);
+  const e = b.effect;
+
+  if (e.type === 'all') return (e.side === 'own' ? mine : theirs).length > 0;
+  if (e.type === 'single') return (e.side === 'own' ? mine : theirs).length > 0;
+  if (e.type === 'combo') return mine.length > 0 && theirs.length > 0;
+  if (e.type === 'piece') {
+    const pool = e.side === 'own' ? mine : theirs;
+    return pool.some((p) => p.kind === e.kind);
+  }
+  if (e.type === 'flag') {
+    if (e.kind) {
+      const p = mine.find((q) => q.kind === e.kind);
+      return !!p && !p.flags[e.flag];
+    }
+    return mine.some((p) => !p.flags[e.flag] && p.kind !== 'rat' && !(e.flag === 'jump' && p.flags.jump));
+  }
+  if (e.type === 'trap') return trapTargets(st, side, e.area, e.level, e.count).cells.length > 0;
+  return false;
+}
+
+// 可放陷阱的格子
+function trapCells(st, side, area) {
+  const out = [];
+  for (let y = 1; y <= GEO.rows; y++) {
+    for (let x = 1; x <= GEO.cols; x++) {
+      if (isRiver(x, y)) continue;
+      if (isDen(x, y, 'red') || isDen(x, y, 'blue')) continue;
+      if (pieceAt(st, x, y)) continue;
+      if (area === 'own' && regionOf(x, y) !== side) continue;
+      if (area === 'enemy' && regionOf(x, y) !== other(side)) continue;
+      if (area === 'neutral' && regionOf(x, y) !== 'neutral') continue;
+      const t = trapAt(st, x, y);
+      if (t && t.level === 'max') continue;   // 最高级陷阱格不参与（随机时重抽，指定时也不允许）
+      out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+function trapTargets(st, side, area, level) {
+  const cells = trapCells(st, side, area);
+  const usable = cells.filter((c) => {
+    const t = trapAt(st, c.x, c.y);
+    if (!t) return true;
+    if (t.level === 'max') return false;
+    if (level === 'high') return true;          // 高覆盖低、同级后来者覆盖
+    return t.level === 'low';                   // 低只能覆盖低
+  });
+  return { cells: usable };
+}
+
+function eligibleBlessings(st, side) {
+  return CATALOG.filter((b) => isEligible(st, side, b));
+}
+
+// ---------- 抽赐福 ----------
+function drawOffers(st, side, rng = Math.random, count = 3) {
+  let pool = eligibleBlessings(st, side).map((b) => b);
+
+  // 同类型池：本批次内双方都从同一个类别里抽
+  if (st.settings.samePool) {
+    const cats = [...new Set(pool.map((b) => b.cat))];
+    if (!st.poolCategory && cats.length) {
+      st.poolCategory = cats[Math.floor(rng() * cats.length)];
+    }
+    if (st.poolCategory) {
+      const filtered = pool.filter((b) => b.cat === st.poolCategory);
+      if (filtered.length) pool = filtered;
+    }
+  }
+
+  const picked = [];
+  while (picked.length < count && pool.length) {
+    const total = pool.reduce((s, b) => s + b.weight, 0);
+    let r = rng() * total;
+    let idx = 0;
+    for (; idx < pool.length; idx++) {
+      r -= pool[idx].weight;
+      if (r <= 0) break;
+    }
+    if (idx >= pool.length) idx = pool.length - 1;
+    picked.push(pool[idx].id);
+    pool.splice(idx, 1);
+  }
+  return picked;
+}
+
+// ---------- 赐福阶段 ----------
+function startNextPending(st, rng = Math.random) {
+  if (!st.queue.length) {
+    st.pending = null;
+    st.phase = st.winner ? 'over' : st.phase === 'opening' ? 'opening' : 'playing';
+    return null;
+  }
+  const item = st.queue.shift();
+  st.pending = { side: item.side, cause: item.cause, offers: drawOffers(st, item.side, rng) };
+  st.phase = 'blessing';
+  return st.pending;
+}
+
+function chooseBlessing(st, id, target = null, rng = Math.random) {
+  if (!st.pending) return { ok: false, error: '现在没有待选的赐福' };
+  const side = st.pending.side;
+  if (!st.pending.offers.includes(id)) return { ok: false, error: '不在本次的三选一里' };
+
+  const res = applyBlessing(st, side, id, target);
+  if (!res.ok) return res;
+
+  st.pending = null;
+  st.phase = 'playing';
+  if (st.queue.length) {
+    const next = startNextPending(st, rng);
+    if (next) return { ok: true, next };
+  }
+  st.poolCategory = null;          // 一批选完，类别重置
+  return { ok: true };
+}
+
+// ---------- 落赐福 ----------
+function applyBlessing(st, side, id, target = null, rng = Math.random) {
+  const b = byId(id);
+  if (!b) return { ok: false, error: '没有这个赐福' };
+  if (!isEligible(st, side, b)) return { ok: false, error: '这个赐福当前不可用' };
+
+  const e = b.effect;
+  const foe = other(side);
+
+  const addRank = (p, d) => { p.rank += d; };
+
+  if (e.type === 'all') {
+    for (const p of alivePieces(st, e.side === 'own' ? side : foe)) addRank(p, e.delta);
+  } else if (e.type === 'single') {
+    const p = requirePiece(st, side, target, e.side);
+    if (!p) return { ok: false, error: '目标棋子无效' };
+    addRank(p, e.delta);
+  } else if (e.type === 'combo') {
+    const p = requirePiece(st, side, target, 'enemy');
+    if (!p) return { ok: false, error: '目标棋子无效' };
+    for (const q of alivePieces(st, side)) addRank(q, e.ownAll);
+    addRank(p, e.enemySingle);
+  } else if (e.type === 'piece') {
+    const pk = alivePieces(st, e.side === 'own' ? side : foe).filter((p) => p.kind === e.kind);
+    if (!pk.length) return { ok: false, error: '目标棋子已阵亡' };
+    for (const p of pk) addRank(p, e.delta);
+  } else if (e.type === 'flag') {
+    let p;
+    if (e.kind) {
+      p = alivePieces(st, side).find((q) => q.kind === e.kind);
+      if (!p) return { ok: false, error: '目标棋子已阵亡' };
+    } else {
+      p = requireOwn(st, side, target);
+      if (!p) return { ok: false, error: '目标棋子无效' };
+      if (p.kind === 'rat') return { ok: false, error: '老鼠不能选这个' };
+      if (e.flag === 'jump' && p.flags.jump) return { ok: false, error: '这个棋子已经会跳河' };
+    }
+    if (p.flags[e.flag]) return { ok: false, error: '这个棋子已经拥有该能力' };
+    p.flags[e.flag] = true;
+    if (e.flag === 'swim') p.flags.rat = p.kind === 'rat';
+    addRank(p, e.delta);
+  } else if (e.type === 'trap') {
+    const cells = trapTargets(st, side, e.area, e.level).cells;
+    if (!cells.length) return { ok: false, error: '没有可放置的位置' };
+    if (e.pick) {
+      const c = target && cells.find((q) => q.x === target.x && q.y === target.y);
+      if (!c) return { ok: false, error: '这一格不能放陷阱' };
+      st.traps[keyOf(c.x, c.y)] = { owner: side, level: e.level };
+    } else {
+      const pool = cells.slice();
+      for (let i = 0; i < e.count && pool.length; i++) {
+        const idx = Math.floor(rng() * pool.length);
+        const c = pool.splice(idx, 1)[0];
+        st.traps[keyOf(c.x, c.y)] = { owner: side, level: e.level };
+      }
+    }
+  }
+
+  st.blessings[side].push(id);
+  return { ok: true };
+}
+
+function requirePiece(st, side, target, which) {
+  if (!target) return null;
+  const p = pieceAt(st, target.x, target.y);
+  if (!p) return null;
+  const wantSide = which === 'own' ? side : other(side);
+  return p.side === wantSide ? p : null;
+}
+
+function requireOwn(st, side, target) {
+  if (!target) return null;
+  const p = pieceAt(st, target.x, target.y);
+  return p && p.side === side ? p : null;
+}
+
+// ---------- 开局阶段 ----------
+function beginOpening(st, rng = Math.random) {
+  if (st.phase !== 'opening') return null;
+  const side = st.openPicks.red < st.settings.openCount ? 'red' : 'blue';
+  if (st.openPicks[side] >= st.settings.openCount) return null;
+
+  if (side === 'red') {
+    st.sharedOffers = st.settings.sameOffers ? drawOffers(st, 'red', rng) : null;
+  }
+  const offers = st.settings.sameOffers && st.sharedOffers ? st.sharedOffers.slice() : drawOffers(st, side, rng);
+  st.pending = { side, cause: 'open', offers };
+  st.phase = 'blessing';
+  return st.pending;
+}
+
+function finishOpeningPick(st, id, target, rng = Math.random) {
+  const side = st.pending ? st.pending.side : null;
+  const res = chooseBlessing(st, id, target, rng);
+  if (!res.ok) return res;
+  st.openPicks[side]++;
+  if (st.openPicks.red >= st.settings.openCount && st.openPicks.blue >= st.settings.openCount) {
+    st.phase = 'playing';
+    st.pending = null;
+    st.poolCategory = null;
+    return { ok: true, done: true };
+  }
+  st.phase = 'opening';
+  return { ok: true, done: false, next: beginOpening(st, rng) };
+}
+return {
+  GEO, KIND, SIDE_NAME, other, keyOf, inside, isRiver, isDen, regionOf,
+  createMatch, pieceAt, alivePieces, maxRank, pseudoRank, trapAt, trapCells,
+  canCapture, movesOf, applyMove, applyBlessing, chooseBlessing,
+  beginOpening, finishOpeningPick, drawOffers, eligibleBlessings,
+  CATALOG, byId, DEFAULT_SETTINGS
+};
+})();
+</script>
+
+<script>
+(function () {
+'use strict';
+const BS = window.BS;
+const { createMatch, applyMove, movesOf, pieceAt, alivePieces, pseudoRank, trapAt, keyOf,
+        isRiver, isDen, trapCells, chooseBlessing, beginOpening, finishOpeningPick,
+        byId, KIND, GEO, other, SIDE_NAME } = BS;
+
+const boardEl = document.getElementById('board');
+const turnEl = document.getElementById('turn');
+const ranksEl = document.getElementById('ranks');
+const ownedEl = document.getElementById('owned');
+const logEl = document.getElementById('log');
+const msgEl = document.getElementById('msg');
+const modalEl = document.getElementById('modal');
+const cardsEl = document.getElementById('cards');
+const modalTitleEl = document.getElementById('modalTitle');
+const hintbarEl = document.getElementById('hintbar');
+const hinttextEl = document.getElementById('hinttext');
+
+const FLAG_NAME = { rat: '鼠', pseudoRat: '伪鼠', swim: '水', jump: '跳' };
+const CAT_NAME = { level: '等级', logic: '逻辑', env: '环境' };
+
+let st;
+let selected = null;
+let legal = [];
+let pick = null;        // { id, need, side, targets:Set }
+let message = '';
+let ui = { openCount: 2, sameOffers: true, samePool: false, midgame: true, t1Every: 3, t1Max: 4, t2Max: 3, t3Max: 3 };
+
+function showStart() {
+  document.getElementById('start').hidden = false;
+}
+
+function newGame() {
+  st = createMatch({ ...ui, t2: ui.t2Max > 0, t3: ui.t3Max > 0 });
+  selected = null;
+  legal = [];
+  pick = null;
+  message = '';
+  ensurePending();
+  render();
+}
+
+function ensurePending() {
+  if (st.phase === 'opening' && !st.pending) {
+    beginOpening(st, Math.random);
+  }
+}
+
+// ---------- 文案 ----------
+function describe(b) {
+  const e = b.effect;
+  const sign = (n) => (n > 0 ? '+' + n : String(n));
+  const who = (s) => (s === 'own' ? '己方' : '对方');
+  if (e.type === 'all') return `${who(e.side)}全体等级 ${sign(e.delta)}`;
+  if (e.type === 'single') return `指定${who(e.side)}一枚棋子，等级 ${sign(e.delta)}`;
+  if (e.type === 'piece') return `${who(e.side)}${KIND[e.kind].name} 等级 ${sign(e.delta)}`;
+  if (e.type === 'combo') return `己方全体 ${sign(e.ownAll)}，对方指定一枚 ${sign(e.enemySingle)}`;
+  if (e.type === 'flag') {
+    const map = { pseudoRat: '获得「伪鼠特权」', swim: '获得「下海」能力', jump: '获得「跳河」能力' };
+    const t = e.kind ? `己方${KIND[e.kind].name}` : '指定己方一枚棋子';
+    return `${t}${map[e.flag]}，等级 ${sign(e.delta)}`;
+  }
+  if (e.type === 'trap') {
+    const lvl = e.level === 'high' ? '高级（−3）' : '低级（−1）';
+    const area = e.area === 'own' ? '我方地区' : e.area === 'enemy' ? '敌方地区' : e.area === 'neutral' ? '中立地区' : '任意位置';
+    return e.pick ? `${area}指定一格，生成${lvl}陷阱` : `${area}随机 ${e.count} 格，生成${lvl}陷阱`;
+  }
+  return '';
+}
+
+function needsTarget(b) {
+  const e = b.effect;
+  if (e.type === 'single' || e.type === 'combo') return 'piece';
+  if (e.type === 'flag' && !e.kind) return 'piece';
+  if (e.type === 'trap' && e.pick) return 'cell';
+  return null;
+}
+
+function validTargets(b, side) {
+  const e = b.effect;
+  const set = new Set();
+  const addPiece = (p) => set.add(keyOf(p.x, p.y));
+  const foe = other(side);
+  if (e.type === 'single') {
+    for (const p of alivePieces(st, e.side === 'own' ? side : foe)) addPiece(p);
+  } else if (e.type === 'combo') {
+    for (const p of alivePieces(st, foe)) addPiece(p);
+  } else if (e.type === 'flag' && !e.kind) {
+    for (const p of alivePieces(st, side)) {
+      if (p.kind === 'rat') continue;
+      if (p.flags[e.flag]) continue;
+      if (e.flag === 'jump' && p.flags.jump) continue;
+      addPiece(p);
+    }
+  } else if (e.type === 'trap' && e.pick) {
+    for (const c of trapCells(st, side, e.area)) {
+      const t = trapAt(st, c.x, c.y);
+      if (t && e.level === 'low' && t.level !== 'low') continue;
+      set.add(keyOf(c.x, c.y));
+    }
+  }
+  return set;
+}
+
+// ---------- 交互 ----------
+function onCell(x, y) {
+  if (pick) {
+    if (!pick.targets.has(keyOf(x, y))) { message = '不能选这一格'; render(); return; }
+    confirmPick(pick.id, { x, y });
+    return;
+  }
+  if (st.phase !== 'playing' || st.winner) return;
+
+  const p = pieceAt(st, x, y);
+  if (selected) {
+    const mv = legal.find((m) => m.x === x && m.y === y);
+    if (mv) {
+      const res = applyMove(st, selected, { x, y });
+      selected = null;
+      legal = [];
+      if (!res.ok) message = res.error;
+      else message = '';
+      render();
+      return;
+    }
+    if (p && p.side === st.turn) {
+      selected = { x, y };
+      legal = movesOf(st, p);
+      message = '';
+      render();
+      return;
+    }
+    selected = null;
+    legal = [];
+    message = '只能走到高亮的格子';
+    render();
+    return;
+  }
+  if (p && p.side === st.turn) {
+    selected = { x, y };
+    legal = movesOf(st, p);
+    message = '';
+    render();
+    return;
+  }
+  message = '先选一枚自己的棋子';
+  render();
+}
+
+function openModal() {
+  if (!st.pending) { modalEl.hidden = true; return; }
+  const side = st.pending.side;
+  modalTitleEl.textContent = st.pending.cause === 'open'
+    ? `开局赐福 · ${SIDE_NAME[side]} 选第 ${(side === 'red' ? st.openPicks.red : st.openPicks.blue) + 1} 个`
+    : `${SIDE_NAME[side]} 获得赐福`;
+  cardsEl.replaceChildren();
+  for (const id of st.pending.offers) {
+    const b = byId(id);
+    const card = document.createElement('button');
+    card.className = 'card';
+    card.type = 'button';
+    card.innerHTML = `<div class="cat">${CAT_NAME[b.cat]}类</div><h4>${b.name}</h4><p>${describe(b)}</p><div class="who">点击选择</div>`;
+    card.addEventListener('click', () => chooseOne(b));
+    cardsEl.appendChild(card);
+  }
+  modalEl.hidden = false;
+}
+
+function chooseOne(b) {
+  const need = needsTarget(b);
+  if (need) {
+    modalEl.hidden = true;
+    pick = { id: b.id, need, side: st.pending.side, targets: validTargets(b, st.pending.side) };
+    hinttextEl.textContent = `「${b.name}」请点选目标（${need === 'piece' ? '一枚棋子' : '一个格子'}）`;
+    hintbarEl.hidden = false;
+    render();
+    return;
+  }
+  confirmPick(b.id, null);
+}
+
+function confirmPick(id, target) {
+  const isOpening = !!(st.pending && st.pending.cause === 'open');
+  const res = isOpening ? finishOpeningPick(st, id, target, Math.random) : chooseBlessing(st, id, target, Math.random);
+  pick = null;
+  hintbarEl.hidden = true;
+  if (!res.ok) {
+    message = res.error || '这个赐福用不了';
+  } else {
+    message = '';
+  }
+  render();
+}
+
+// ---------- 渲染 ----------
+function render() {
+  ensurePending();
+  renderBoard();
+  renderTurn();
+  renderRanks();
+  renderOwned();
+  renderLog();
+  msgEl.textContent = message;
+  if (st.pending && !pick) openModal(); else modalEl.hidden = true;
+}
+
+function renderTurn() {
+  turnEl.className = 'turn';
+  if (st.winner) { turnEl.innerHTML = `<b>${SIDE_NAME[st.winner]}</b> 获胜 · ${st.reason || ''}`; return; }
+  if (st.phase === 'opening') { turnEl.innerHTML = `开局赐福阶段`; return; }
+  if (st.phase === 'blessing') {
+    const who = st.pending ? st.pending.side : st.turn;
+    const open = st.pending && st.pending.cause === 'open';
+    turnEl.innerHTML = open
+      ? `开局赐福 · <b>${SIDE_NAME[who]}</b> 第 ${(who === 'red' ? st.openPicks.red : st.openPicks.blue) + 1} 选`
+      : `等待 <b>${SIDE_NAME[who]}</b> 选赐福`;
+    return;
+  }
+  turnEl.classList.add(st.turn);
+  turnEl.innerHTML = `轮到 <b>${SIDE_NAME[st.turn]}</b>`;
+}
+
+function renderBoard() {
+  const frag = document.createDocumentFragment();
+  const moveMap = new Map(legal.map((m) => [keyOf(m.x, m.y), m]));
+  for (let y = 1; y <= GEO.rows; y++) {
+    for (let x = 1; x <= GEO.cols; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+
+      if (isRiver(x, y)) cell.classList.add('river');
+      const t = trapAt(st, x, y);
+      if (t) {
+        cell.classList.add('trap-' + t.owner);
+        if (t.level === 'max') cell.classList.add('trap-high');
+      }
+      if (isDen(x, y, 'red') || isDen(x, y, 'blue')) cell.classList.add('den');
+
+      const p = pieceAt(st, x, y);
+      if (p && selected && selected.x === x && selected.y === y) cell.classList.add('sel');
+      const mv = moveMap.get(keyOf(x, y));
+      if (mv) cell.classList.add(mv.capture ? 'cap' : 'move');
+      if (pick && pick.targets.has(keyOf(x, y))) cell.classList.add('target');
+
+      if (p) {
+        const el = document.createElement('div');
+        el.className = 'piece ' + p.side;
+        const flags = [];
+        if (p.flags.pseudoRat) flags.push('伪');
+        if (p.flags.swim && p.kind !== 'rat') flags.push('水');
+        if (p.flags.jump && p.kind !== 'lion' && p.kind !== 'tiger') flags.push('跳');
+        el.innerHTML = `<span>${KIND[p.kind].name}</span><span class="num">${p.rank}</span>`;
+        if (flags.length) {
+          const f = document.createElement('span');
+          f.className = 'flag-tag';
+          f.textContent = flags.join('');
+          el.appendChild(f);
+        }
+        cell.appendChild(el);
+      }
+
+      if (t) {
+        const tag = document.createElement('span');
+        tag.className = 'trap-tag';
+        tag.style.color = t.owner === 'red' ? '#a8353a' : '#3165a3';
+        tag.textContent = t.level === 'max' ? '★' : t.level === 'high' ? '陷3' : '陷1';
+        cell.appendChild(tag);
+      }
+
+      cell.addEventListener('click', () => onCell(x, y));
+      frag.appendChild(cell);
+    }
+  }
+  boardEl.replaceChildren(frag);
+}
+
+function renderRanks() {
+  let html = '';
+  for (const side of ['red', 'blue']) {
+    const ps = alivePieces(st, side).slice().sort((a, b) => b.rank - a.rank);
+    for (const p of ps) {
+      const flags = [];
+      if (p.flags.rat) flags.push('鼠');
+      if (p.flags.pseudoRat) flags.push('伪鼠');
+      if (p.flags.swim && p.kind !== 'rat') flags.push('水');
+      if (p.flags.jump && p.kind !== 'lion' && p.kind !== 'tiger') flags.push('跳');
+      const pr = pseudoRank(st, p);
+      const shown = pr === p.rank ? '' : `（被吃按 ${pr === -Infinity ? '−∞' : pr}）`;
+      html += `<div class="rank-row"><span class="dot ${side}"></span>${KIND[p.kind].name}`
+        + `<span class="tags">${flags.join(' ')}</span>`
+        + `<span class="r ${p.rank < 0 ? 'neg' : ''}">${p.rank}${shown ? '<span class="tags">' + shown + '</span>' : ''}</span></div>`;
+    }
+  }
+  ranksEl.innerHTML = html;
+}
+
+function renderOwned() {
+  let html = '';
+  for (const side of ['red', 'blue']) {
+    html += `<div class="side">${SIDE_NAME[side]}（${st.blessings[side].length}）</div>`;
+    html += st.blessings[side].map((id) => `<div>· ${byId(id).name}</div>`).join('') || '<div>· 暂无</div>';
+  }
+  ownedEl.innerHTML = html;
+}
+
+function renderLog() {
+  const rows = st.log.slice(-12).reverse().map((m) => {
+    const cap = m.captured ? ` 吃 ${KIND[m.captured].name}` : '';
+    return `<div>${SIDE_NAME[m.side]} ${KIND[m.kind].name} (${m.from.x},${m.from.y})→(${m.to.x},${m.to.y})${cap}</div>`;
+  });
+  logEl.innerHTML = rows.join('') || '<div>还没有落子</div>';
+}
+
+document.getElementById('restart').addEventListener('click', () => showStart());
+document.getElementById('cancelPick').addEventListener('click', () => {
+  pick = null;
+  hintbarEl.hidden = true;
+  render();
+});
+
+document.getElementById('btn-start').addEventListener('click', () => {
+  const num = (id) => Math.max(0, Number(document.getElementById(id).value) || 0);
+  ui = {
+    openCount: Math.min(9, num('set-open')),
+    sameOffers: document.getElementById('set-same').checked,
+    samePool: document.getElementById('set-pool').checked,
+    midgame: document.getElementById('set-mid').checked,
+    t1Every: Math.min(30, num('set-t1e')),
+    t1Max: Math.min(99, num('set-t1m')),
+    t2Max: Math.min(99, num('set-t2m')),
+    t3Max: Math.min(99, num('set-t3m')),
+  };
+  document.getElementById('start').hidden = true;
+  newGame();
+});
+
+newGame();
+showStart();
+
+// 调试钩子
+window.__bs = {
+  get st() { return st; },
+  get pick() { return pick; },
+  get msg() { return message; }
+};
+})();
+</script>
+</body>
+</html>
