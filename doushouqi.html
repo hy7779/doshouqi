@@ -41,7 +41,7 @@
   h1 { font-size: clamp(28px, 5vw, 44px); margin: 10px 0 6px; letter-spacing: .1em; font-weight: 600; }
   .lede { color: #bdb09a; margin: 0 0 32px; max-width: 34em; font-size: 15px; }
 
-  .modes { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+  .modes { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   @media (max-width: 900px) { .modes { grid-template-columns: 1fr; } }
 
   .mode {
@@ -150,6 +150,19 @@
       </div>
       <span class="go" id="localGo">查看怎么跑</span>
     </button>
+
+    <a class="mode" href="./blessing.html" style="--glow:#6b4a2f66">
+      <span class="no">04</span>
+      <div class="glyph" aria-hidden="true">🎴</div>
+      <h2>赐福模式</h2>
+      <p>等级会变、规则会改的斗兽棋。开局与战中三选一，鼠王猎杀最高，陷阱改写地形。</p>
+      <div class="tags">
+        <span class="tag gold">本地双人</span>
+        <span class="tag">49 张赐福</span>
+        <span class="tag">原型</span>
+      </div>
+      <span class="go">进入对局</span>
+    </a>
   </div>
 
   <section class="local-panel" id="localPanel" hidden>
@@ -160,7 +173,7 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1</code></pre>
     <p>启动后打开 <code>http://127.0.0.1:8765</code>，回 DSH 里说「来一局」或「绑定游戏」，然后在网页上执红先行。</p>
   </section>
 
-  <p class="note">三个模式共用同一副棋盘、同一套规则。<b>联机</b>要联网，<b>单机</b>完全离线，<b>人机</b>需要本机服务。</p>
+  <p class="note">四个模式共用同一副棋盘、同一套基础规则。<b>联机</b>要联网，<b>单机</b>完全离线，<b>人机</b>需要本机服务，<b>赐福</b>目前是本地双人原型。</p>
 </div>
 
 <script>
