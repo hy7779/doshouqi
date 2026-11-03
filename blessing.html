@@ -78,6 +78,11 @@
   .owned .side { color: #8f8065; margin-top: 6px; font-size: 11px; }
   #log { font-size: 11.5px; color: #9fae9f; max-height: 150px; overflow: auto; }
   #log div { padding: 1px 0; border-bottom: 1px dashed #1e2b25; }
+  .chat-log { font-size: 12px; color: #b9c7b9; max-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+  .chat-log b { color: #d9b26a; font-weight: 500; }
+  .chat-row { display: flex; gap: 6px; margin-top: 8px; }
+  .chat-row input { flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--ink); background: #0b1613; border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
+  .chat-row button { padding: 5px 10px; font-size: 12px; }
   .msg { margin-top: 10px; font-size: 12.5px; color: #e0b48a; min-height: 18px; }
   .hintbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12.5px; color: #d9c9a6; }
   .hintbar[hidden] { display: none; }
@@ -154,6 +159,14 @@
       <section class="panel">
         <h3>交手记录</h3>
         <div id="log"></div>
+      </section>
+      <section class="panel">
+        <h3>聊天</h3>
+        <div id="chatLog" class="chat-log"></div>
+        <div class="chat-row">
+          <input id="chatInput" type="text" maxlength="200" placeholder="联机时才能聊">
+          <button id="chatSend">发送</button>
+        </div>
       </section>
     </aside>
   </main>
@@ -819,7 +832,7 @@ function sanitize(st, side) {
   return out;
 }
 
-function createHostRoom({ settings, send, onChange, rng = Math.random }) {
+function createHostRoom({ settings, send, onChange, onChat, rng = Math.random }) {
   const st = createMatch(settings);
   const localSide = 'red';
   const seats = { red: localSide, blue: null };
@@ -857,6 +870,12 @@ function createHostRoom({ settings, send, onChange, rng = Math.random }) {
     return { ok: false, error: '未知操作' };
   }
 
+  function broadcastChat(name, text) {
+    const msg = { type: 'chat', name, text };
+    for (const [peerId] of peers) send(peerId, msg);
+    if (onChat) onChat(msg);
+  }
+
   return {
     get state() { return sanitize(st, localSide); },
     get side() { return localSide; },
@@ -881,6 +900,10 @@ function createHostRoom({ settings, send, onChange, rng = Math.random }) {
     onMessage(peerId, msg) {
       const info = peers.get(peerId);
       if (!info) return;
+      if (msg.type === 'chat') {
+        broadcastChat(info.name, String(msg.text || '').slice(0, 200));
+        return;
+      }
       if (msg.type === 'move' || msg.type === 'pick') {
         const res = applyAction(info.side, msg.type, msg);
         if (!res.ok) send(peerId, { type: 'error', message: res.error });
@@ -901,10 +924,11 @@ function createHostRoom({ settings, send, onChange, rng = Math.random }) {
     },
 
     broadcast,
+    chat(text) { broadcastChat('房主', String(text || '').slice(0, 200)); },
   };
 }
 
-function createGuestRoom({ send, onChange }) {
+function createGuestRoom({ send, onChange, onChat }) {
   let state = null;
   let side = 'spectator';
   let lastError = '';
@@ -916,8 +940,10 @@ function createGuestRoom({ send, onChange }) {
     hello(name) { send({ type: 'hello', name }); },
     move(from, to) { send({ type: 'move', from, to }); },
     pick(id, target) { send({ type: 'pick', id, target }); },
+    chat(text) { send({ type: 'chat', text: String(text || '').slice(0, 200) }); },
     onMessage(msg) {
       if (msg.type === 'seat') { side = msg.side; return; }
+      if (msg.type === 'chat') { if (onChat) onChat(msg); return; }
       if (msg.type === 'state') { state = msg.state; if (onChange) onChange(state); return; }
       if (msg.type === 'error') { lastError = msg.message; if (onChange) onChange(state); }
     },
@@ -1053,7 +1079,14 @@ function onCell(x, y) {
   }
   if (st.phase !== 'playing' || st.winner) return;
 
+  const me = online ? online.room.side : null;
+  if (online) {
+    if (me !== 'red' && me !== 'blue') { message = '观战中，不能操作'; render(); return; }
+    if (st.turn !== me) { message = '还没轮到你，现在是' + (st.turn === 'red' ? '红方' : '蓝方') + '的回合'; render(); return; }
+  }
+
   const p = pieceAt(st, x, y);
+  const mine = online ? me : st.turn;
   if (selected) {
     const mv = legal.find((m) => m.x === x && m.y === y);
     if (mv) {
@@ -1065,7 +1098,7 @@ function onCell(x, y) {
       render();
       return;
     }
-    if (p && p.side === st.turn) {
+    if (p && p.side === mine) {
       selected = { x, y };
       legal = movesOf(st, p);
       message = '';
@@ -1078,7 +1111,7 @@ function onCell(x, y) {
     render();
     return;
   }
-  if (p && p.side === st.turn) {
+  if (p && p.side === mine) {
     selected = { x, y };
     legal = movesOf(st, p);
     message = '';
@@ -1311,6 +1344,30 @@ function lobStatus(text, isErr) {
   lobStatusEl.className = 'lob-status' + (isErr ? ' err' : '');
 }
 
+function appendChat(name, text) {
+  const log = document.getElementById('chatLog');
+  const row = document.createElement('div');
+  row.innerHTML = '<b></b> ';
+  row.querySelector('b').textContent = name + '：';
+  row.appendChild(document.createTextNode(text));
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sendChat() {
+  if (!online) { appendChat('系统', '联机时才能聊天'); return; }
+  const input = document.getElementById('chatInput');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  online.room.chat(text);
+  input.value = '';
+}
+
+document.getElementById('chatSend').addEventListener('click', sendChat);
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChat();
+});
+
 function openLobby() {
   document.getElementById('start').hidden = true;
   lobbyEl.hidden = false;
@@ -1349,6 +1406,7 @@ document.getElementById('lob-host').addEventListener('click', () => {
       settings: { ...ui, t2: ui.t2Max > 0, t3: ui.t3Max > 0 },
       send: (id, msg) => { const c = conns.get(id); if (c && c.open) c.send(msg); },
       onChange: (s) => { st = s; selected = null; legal = []; render(); },
+      onChat: (m) => appendChat(m.name || '对手', m.text),
       rng: Math.random,
     });
     st = room.state;
@@ -1385,6 +1443,7 @@ document.getElementById('lob-join').addEventListener('click', () => {
       guest = BS.createGuestRoom({
         send: (m) => conn.send(m),
         onChange: (s) => { st = s; selected = null; legal = []; render(); },
+        onChat: (m) => appendChat(m.name || '对手', m.text),
       });
       online = { role: 'guest', peer, room: guest, code };
       const badge = document.getElementById('roomBadge');
