@@ -144,8 +144,32 @@
     position: relative;
     font-family: "STKaiti", "KaiTi", "Kaiti SC", serif;
     font-size: clamp(11px, 2.3vw, 17px);
-    box-shadow: 0 3px 7px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(255, 255, 255, .55), inset 0 -5px 9px rgba(0, 0, 0, .12);
+    box-shadow: 0 3px 7px rgba(0, 0, 0, .38), inset 0 0 0 2px var(--ring, rgba(255, 255, 255, .55)), inset 0 -5px 9px rgba(0, 0, 0, .12);
   }
+  .piece.k-rat { --ring: #9aa3a8; }
+  .piece.k-cat { --ring: #d8b48a; }
+  .piece.k-dog { --ring: #b07c4f; }
+  .piece.k-wolf { --ring: #7c8fa3; }
+  .piece.k-leopard { --ring: #d9a441; }
+  .piece.k-tiger { --ring: #d9773f; }
+  .piece.k-lion { --ring: #d9b26a; }
+  .piece.k-elephant { --ring: #6f9f9a; }
+
+  .cell.last-from { background-image: radial-gradient(circle, rgba(217, 178, 106, .28), transparent 72%); }
+  .cell.last-to { box-shadow: inset 0 0 0 2px rgba(217, 178, 106, .8); }
+  .piece.pop { animation: pop .32s ease; }
+  @keyframes pop {
+    0% { transform: scale(.72); }
+    65% { transform: scale(1.07); }
+    100% { transform: scale(1); }
+  }
+
+  .card.cat-level { border-top: 2px solid #d9b26a; }
+  .card.cat-logic { border-top: 2px solid #a98be0; }
+  .card.cat-env { border-top: 2px solid #5fbfae; }
+  .card.cat-level .cat { color: #d9b26a; }
+  .card.cat-logic .cat { color: #b9a3ea; }
+  .card.cat-env .cat { color: #74cbbd; }
   .piece .num {
     position: absolute; right: -7%; bottom: -7%;
     min-width: 1.6em; padding: 0 .2em;
@@ -1181,7 +1205,7 @@ function openModal() {
   for (const id of st.pending.offers) {
     const b = byId(id);
     const card = document.createElement('button');
-    card.className = 'card';
+    card.className = 'card cat-' + b.cat;
     card.type = 'button';
     card.innerHTML = `<div class="cat">${CAT_NAME[b.cat]}类</div><h4>${b.name}</h4><p>${describe(b)}</p><div class="who">点击选择</div>`;
     card.addEventListener('click', () => chooseOne(b));
@@ -1285,6 +1309,11 @@ function renderBoard() {
       if (isDen(x, y, 'red') || isDen(x, y, 'blue')) cell.classList.add('den');
 
       const p = pieceAt(st, x, y);
+      const last = st.log[st.log.length - 1];
+      if (last) {
+        if (last.from.x === x && last.from.y === y) cell.classList.add('last-from');
+        if (last.to.x === x && last.to.y === y) cell.classList.add('last-to');
+      }
       if (p && selected && selected.x === x && selected.y === y) cell.classList.add('sel');
       const mv = moveMap.get(keyOf(x, y));
       if (mv) cell.classList.add(mv.capture ? 'cap' : 'move');
@@ -1292,7 +1321,7 @@ function renderBoard() {
 
       if (p) {
         const el = document.createElement('div');
-        el.className = 'piece ' + p.side;
+        el.className = 'piece ' + p.side + ' k-' + p.kind + (last && last.to.x === x && last.to.y === y ? ' pop' : '');
         const flags = [];
         if (p.flags.pseudoRat) flags.push('伪');
         if (p.flags.swim && p.kind !== 'rat') flags.push('水');
