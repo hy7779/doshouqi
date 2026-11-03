@@ -1311,16 +1311,20 @@ function lobStatus(text, isErr) {
   lobStatusEl.className = 'lob-status' + (isErr ? ' err' : '');
 }
 
-document.getElementById('onlineBtn').addEventListener('click', () => {
+function openLobby() {
   document.getElementById('start').hidden = true;
   lobbyEl.hidden = false;
-  lobStatus(online ? '已经在联机中' : '');
-});
-document.getElementById('btn-online').addEventListener('click', () => {
-  document.getElementById('start').hidden = true;
-  lobbyEl.hidden = false;
-  lobStatus(online ? '已经在联机中' : '');
-});
+  const hosted = online && online.code;
+  document.getElementById('lob-host').hidden = !!hosted;
+  document.getElementById('lob-join').hidden = !!hosted;
+  document.getElementById('lob-code').hidden = !!hosted;
+  lobStatus(hosted
+    ? '你已经在房间 ' + online.code + ' 里了，把这个房号发给朋友，让他在另一台设备上「加入房间」'
+    : '');
+}
+
+document.getElementById('onlineBtn').addEventListener('click', openLobby);
+document.getElementById('btn-online').addEventListener('click', openLobby);
 document.getElementById('lob-close').addEventListener('click', () => {
   lobbyEl.hidden = true;
   if (!online) document.getElementById('start').hidden = false;
