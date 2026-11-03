@@ -114,13 +114,21 @@
     background: linear-gradient(180deg, #d9b26a, #b8904c); color: #221a0d; font-weight: 600; font-size: 14px;
   }
   .start-box button.primary:hover { filter: brightness(1.05); }
+  .start-box input[type="text"] {
+    flex: 1; min-width: 90px; font: inherit; font-size: 12.5px; color: var(--ink);
+    background: #0b1613; border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px;
+  }
+  .lob-status { font-size: 12px; color: #d9b26a; min-height: 18px; word-break: break-all; }
+  .lob-status.err { color: #e08a80; }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="bar">
     <h1>斗兽棋 · 赐福模式<span class="badge">本地双人原型</span></h1>
+    <span class="badge" id="roomBadge" hidden></span>
     <div class="turn" id="turn">—</div>
+    <button id="onlineBtn">联机</button>
     <button id="restart">重新开局</button>
   </div>
 
@@ -151,6 +159,19 @@
   </main>
 </div>
 
+<div class="start" id="lobby" hidden>
+  <div class="start-box">
+    <h2>联机对战</h2>
+    <p class="sub">房主执红，第一个加入者执蓝，其余人观战</p>
+    <label class="row"><span>昵称</span><input type="text" id="lob-name" value="玩家" maxlength="8"></label>
+    <button class="primary" id="lob-host">创建房间</button>
+    <label class="row"><span>房号</span><input type="text" id="lob-code" maxlength="6" placeholder="四位，如 A1B2"></label>
+    <button class="primary" id="lob-join">加入房间</button>
+    <div class="lob-status" id="lob-status"></div>
+    <button id="lob-close">关闭</button>
+  </div>
+</div>
+
 <div class="start" id="start" hidden>
   <div class="start-box">
     <h2>创建对局</h2>
@@ -164,6 +185,7 @@
     <label class="row"><span>最大子被吃触发上限</span><input type="number" id="set-t2m" min="0" max="99" value="3"></label>
     <label class="row"><span>踩对方陷阱触发上限</span><input type="number" id="set-t3m" min="0" max="99" value="3"></label>
     <button class="primary" id="btn-start">开始对局</button>
+    <button id="btn-online">联机对战（房主 / 加入）</button>
   </div>
 </div>
 
@@ -773,15 +795,146 @@ function finishOpeningPick(st, id, target, rng = Math.random) {
   st.phase = 'opening';
   return { ok: true, done: false, next: beginOpening(st, rng) };
 }
+
+// ============================================================
+// 赐福模式 · 联机房间协议
+//
+// 房主权威：只有房主持有局面，所有落子/选赐福都发给房主校验，
+// 校验通过后房主把「按接收者裁剪过的状态」广播出去。
+// 关键点：待选的三个赐福只发给该选的一方，对手收到的 pending.offers 是 null。
+//
+// 传输层由调用方注入（浏览器里是 PeerJS，测试里是内存管道），
+// 所以这套逻辑可以脱离网络单测。
+// ============================================================
+
+
+const clone = (v) => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
+
+/** 按接收者裁剪状态：别人的赐福三选一看不到 */
+function sanitize(st, side) {
+  const out = clone(st);
+  if (out.pending && out.pending.side !== side) {
+    out.pending = { side: out.pending.side, cause: out.pending.cause, offers: null };
+  }
+  return out;
+}
+
+function createHostRoom({ settings, send, onChange, rng = Math.random }) {
+  const st = createMatch(settings);
+  const localSide = 'red';
+  const seats = { red: localSide, blue: null };
+  const peers = new Map();          // peerId -> { side, name }
+
+  const ensure = () => {
+    if (st.phase === 'opening' && !st.pending) beginOpening(st, rng);
+  };
+
+  function broadcast() {
+    ensure();
+    if (onChange) onChange(sanitize(st, localSide));
+    for (const [peerId, info] of peers) {
+      send(peerId, { type: 'state', state: sanitize(st, info.side) });
+    }
+  }
+
+  function applyAction(side, kind, payload) {
+    if (kind === 'move') {
+      if (!st.pending && st.phase === 'playing' && st.turn === side) {
+        const res = applyMove(st, payload.from, payload.to);
+        if (!res.ok) return { ok: false, error: res.error };
+        return { ok: true };
+      }
+      return { ok: false, error: '还没轮到你' };
+    }
+    if (kind === 'pick') {
+      if (!st.pending || st.pending.side !== side) return { ok: false, error: '现在不该你选' };
+      const res = st.pending.cause === 'open'
+        ? finishOpeningPick(st, payload.id, payload.target || null, rng)
+        : chooseBlessing(st, payload.id, payload.target || null, rng);
+      if (!res.ok) return { ok: false, error: res.error };
+      return { ok: true };
+    }
+    return { ok: false, error: '未知操作' };
+  }
+
+  return {
+    get state() { return sanitize(st, localSide); },
+    get side() { return localSide; },
+    get peers() { return [...peers.entries()].map(([id, v]) => ({ id, ...v })); },
+
+    join(peerId, name) {
+      const side = seats.blue === null ? 'blue' : 'spectator';
+      if (side === 'blue') seats.blue = peerId;
+      peers.set(peerId, { side, name: name || '玩家' });
+      send(peerId, { type: 'seat', side, hostName: '' });
+      broadcast();
+      return side;
+    },
+
+    leave(peerId) {
+      const info = peers.get(peerId);
+      if (info && info.side === 'blue') seats.blue = null;
+      peers.delete(peerId);
+      broadcast();
+    },
+
+    onMessage(peerId, msg) {
+      const info = peers.get(peerId);
+      if (!info) return;
+      if (msg.type === 'move' || msg.type === 'pick') {
+        const res = applyAction(info.side, msg.type, msg);
+        if (!res.ok) send(peerId, { type: 'error', message: res.error });
+        else broadcast();
+      }
+    },
+
+    localMove(from, to) {
+      const res = applyAction(localSide, 'move', { from, to });
+      if (res.ok) broadcast();
+      return res;
+    },
+
+    localPick(id, target) {
+      const res = applyAction(localSide, 'pick', { id, target });
+      if (res.ok) broadcast();
+      return res;
+    },
+
+    broadcast,
+  };
+}
+
+function createGuestRoom({ send, onChange }) {
+  let state = null;
+  let side = 'spectator';
+  let lastError = '';
+
+  return {
+    get state() { return state; },
+    get side() { return side; },
+    get error() { return lastError; },
+    hello(name) { send({ type: 'hello', name }); },
+    move(from, to) { send({ type: 'move', from, to }); },
+    pick(id, target) { send({ type: 'pick', id, target }); },
+    onMessage(msg) {
+      if (msg.type === 'seat') { side = msg.side; return; }
+      if (msg.type === 'state') { state = msg.state; if (onChange) onChange(state); return; }
+      if (msg.type === 'error') { lastError = msg.message; if (onChange) onChange(state); }
+    },
+  };
+}
 return {
   GEO, KIND, SIDE_NAME, other, keyOf, inside, isRiver, isDen, regionOf,
   createMatch, pieceAt, alivePieces, maxRank, pseudoRank, trapAt, trapCells,
   canCapture, movesOf, applyMove, applyBlessing, chooseBlessing,
   beginOpening, finishOpeningPick, drawOffers, eligibleBlessings,
-  CATALOG, byId, DEFAULT_SETTINGS
+  CATALOG, byId, DEFAULT_SETTINGS,
+  createHostRoom, createGuestRoom, sanitize
 };
 })();
 </script>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
 (function () {
@@ -812,6 +965,7 @@ let legal = [];
 let pick = null;        // { id, need, side, targets:Set }
 let message = '';
 let ui = { openCount: 2, sameOffers: true, samePool: false, midgame: true, t1Every: 3, t1Max: 4, t2Max: 3, t3Max: 3 };
+let online = null;
 
 function showStart() {
   document.getElementById('start').hidden = false;
@@ -828,6 +982,7 @@ function newGame() {
 }
 
 function ensurePending() {
+  if (online) return;
   if (st.phase === 'opening' && !st.pending) {
     beginOpening(st, Math.random);
   }
@@ -902,10 +1057,10 @@ function onCell(x, y) {
   if (selected) {
     const mv = legal.find((m) => m.x === x && m.y === y);
     if (mv) {
-      const res = applyMove(st, selected, { x, y });
+      const res = doMove(selected, { x, y });
       selected = null;
       legal = [];
-      if (!res.ok) message = res.error;
+      if (res && !res.ok) message = res.error;
       else message = '';
       render();
       return;
@@ -935,7 +1090,7 @@ function onCell(x, y) {
 }
 
 function openModal() {
-  if (!st.pending) { modalEl.hidden = true; return; }
+  if (!st.pending || !st.pending.offers) { modalEl.hidden = true; return; }
   const side = st.pending.side;
   modalTitleEl.textContent = st.pending.cause === 'open'
     ? `开局赐福 · ${SIDE_NAME[side]} 选第 ${(side === 'red' ? st.openPicks.red : st.openPicks.blue) + 1} 个`
@@ -967,16 +1122,38 @@ function chooseOne(b) {
 }
 
 function confirmPick(id, target) {
-  const isOpening = !!(st.pending && st.pending.cause === 'open');
-  const res = isOpening ? finishOpeningPick(st, id, target, Math.random) : chooseBlessing(st, id, target, Math.random);
+  const res = doPick(id, target);
   pick = null;
   hintbarEl.hidden = true;
-  if (!res.ok) {
-    message = res.error || '这个赐福用不了';
-  } else {
-    message = '';
-  }
+  if (res && !res.ok) message = res.error || '这个赐福用不了';
+  else message = '';
   render();
+}
+
+// ---------- 动作层：本地 / 联机 ----------
+function doMove(from, to) {
+  if (!online) return applyMove(st, from, to);
+  if (online.role === 'host') {
+    const r = online.room.localMove(from, to);
+    st = online.room.state;
+    return r;
+  }
+  online.room.move(from, to);
+  return { ok: true };
+}
+
+function doPick(id, target) {
+  if (!online) {
+    const isOpening = !!(st.pending && st.pending.cause === 'open');
+    return isOpening ? finishOpeningPick(st, id, target, Math.random) : chooseBlessing(st, id, target, Math.random);
+  }
+  if (online.role === 'host') {
+    const r = online.room.localPick(id, target);
+    st = online.room.state;
+    return r;
+  }
+  online.room.pick(id, target);
+  return { ok: true };
 }
 
 // ---------- 渲染 ----------
@@ -1121,6 +1298,106 @@ document.getElementById('btn-start').addEventListener('click', () => {
   };
   document.getElementById('start').hidden = true;
   newGame();
+});
+
+// ---------- 联机 ----------
+const lobbyEl = document.getElementById('lobby');
+const lobStatusEl = document.getElementById('lob-status');
+const lobNameEl = document.getElementById('lob-name');
+const lobCodeEl = document.getElementById('lob-code');
+
+function lobStatus(text, isErr) {
+  lobStatusEl.textContent = text || '';
+  lobStatusEl.className = 'lob-status' + (isErr ? ' err' : '');
+}
+
+document.getElementById('onlineBtn').addEventListener('click', () => {
+  document.getElementById('start').hidden = true;
+  lobbyEl.hidden = false;
+  lobStatus(online ? '已经在联机中' : '');
+});
+document.getElementById('btn-online').addEventListener('click', () => {
+  document.getElementById('start').hidden = true;
+  lobbyEl.hidden = false;
+  lobStatus(online ? '已经在联机中' : '');
+});
+document.getElementById('lob-close').addEventListener('click', () => {
+  lobbyEl.hidden = true;
+  if (!online) document.getElementById('start').hidden = false;
+});
+
+function randomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+document.getElementById('lob-host').addEventListener('click', () => {
+  if (typeof Peer === 'undefined') { lobStatus('PeerJS 没加载出来，检查网络后刷新', true); return; }
+  const code = randomCode();
+  const peer = new Peer('dsq-bless-' + code, { debug: 1 });
+  const conns = new Map();
+  let room = null;
+
+  peer.on('open', () => {
+    room = BS.createHostRoom({
+      settings: { ...ui, t2: ui.t2Max > 0, t3: ui.t3Max > 0 },
+      send: (id, msg) => { const c = conns.get(id); if (c && c.open) c.send(msg); },
+      onChange: (s) => { st = s; selected = null; legal = []; render(); },
+      rng: Math.random,
+    });
+    st = room.state;
+    online = { role: 'host', peer, room, code };
+    const badge = document.getElementById('roomBadge');
+    badge.hidden = false;
+    badge.textContent = '房号 ' + code;
+    document.getElementById('start').hidden = true;
+    document.getElementById('restart').hidden = true;
+    lobbyEl.hidden = true;
+    render();
+  });
+  peer.on('connection', (conn) => {
+    conns.set(conn.peer, conn);
+    conn.on('open', () => { if (room) room.join(conn.peer, '对手'); });
+    conn.on('data', (m) => { if (room) room.onMessage(conn.peer, m); });
+    conn.on('close', () => { conns.delete(conn.peer); if (room) room.leave(conn.peer); });
+  });
+  peer.on('error', (e) => lobStatus('房间创建失败：' + (e.type || '未知') + '，换个房号再试', true));
+  lobStatus('创建中…');
+});
+
+document.getElementById('lob-join').addEventListener('click', () => {
+  if (typeof Peer === 'undefined') { lobStatus('PeerJS 没加载出来，检查网络后刷新', true); return; }
+  const code = (lobCodeEl.value || '').trim().toUpperCase();
+  if (code.length !== 4) { lobStatus('房号是四位字母数字', true); return; }
+  const peer = new Peer(undefined, { debug: 1 });
+  const buffered = [];
+  let guest = null;
+
+  peer.on('open', () => {
+    const conn = peer.connect('dsq-bless-' + code, { reliable: true });
+    conn.on('open', () => {
+      guest = BS.createGuestRoom({
+        send: (m) => conn.send(m),
+        onChange: (s) => { st = s; selected = null; legal = []; render(); },
+      });
+      online = { role: 'guest', peer, room: guest, code };
+      const badge = document.getElementById('roomBadge');
+      badge.hidden = false;
+      badge.textContent = '房号 ' + code;
+      document.getElementById('start').hidden = true;
+      document.getElementById('restart').hidden = true;
+      lobbyEl.hidden = true;
+      guest.hello(lobNameEl.value || '玩家');
+      while (buffered.length) guest.onMessage(buffered.shift());
+      render();
+    });
+    conn.on('data', (m) => { if (guest) guest.onMessage(m); else buffered.push(m); });
+    conn.on('close', () => lobStatus('和房主断开了', true));
+  });
+  peer.on('error', (e) => lobStatus('加入失败：' + (e.type || '未知') + '，确认房号', true));
+  lobStatus('连接中…');
 });
 
 newGame();
