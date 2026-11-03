@@ -1656,8 +1656,9 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script>
-// 规则引擎 + 搜索，构建时由 engine.mjs / ai-search.mjs 内联进来。
+<script id="dsq-core">
+// 规则引擎 + 搜索，构建时由 engine.mjs / eval-weights.mjs / ai-search.mjs 内联进来。
+// 这段文本同时是 Web Worker 的源码：页面把它和一小段消息胶水拼进 Blob。
 window.DSQ = (function () {
 'use strict';
 
@@ -1830,6 +1831,39 @@ function initialState() {
 }
 
 // ============================================================
+// 评估权重：分数 = Σ(权重 × 特征)。
+//
+// 这个文件由 bench/tune.mjs 用 Texel 法生成：
+//   24000 局自对弈 · depth 3 · 验证对数损失 0.66973
+//   生成时间 2026-11-03T12:08:42.251Z
+//
+// 特征都按“走子方视角”做差：自己的贡献 - 对手的贡献。
+// ============================================================
+
+const FEATURE_NAMES = [
+  'rat', 'cat', 'dog', 'wolf',
+  'leopard', 'tiger', 'lion', 'elephant',
+  'mobility', 'risk', 'denPressure', 'denThreat',
+  'ratSafety',
+];
+
+const DEFAULT_WEIGHTS = {
+  rat: 34.8000,
+  cat: 33.6000,
+  dog: 37.5404,
+  wolf: 26.4000,
+  leopard: 48.3815,
+  tiger: 103.6000,
+  lion: 117.6000,
+  elephant: 114.8000,
+  mobility: 4.6591,
+  risk: -0.9565,
+  denPressure: 3.3247,
+  denThreat: 211.0941,
+  ratSafety: 0.0000,
+};
+
+// ============================================================
 // 斗兽棋搜索模块（浏览器 / Node 共用）
 //
 // 这一份是"算得快"的规则副本：用 63 格 Int8Array 代替 pieces 数组，
@@ -1838,6 +1872,7 @@ function initialState() {
 //
 // 红 = 正数，蓝 = 负数，0 = 空格；数值等于棋子等级。
 // ============================================================
+
 
 
 const W = GEO.cols;
@@ -1904,6 +1939,27 @@ const ENEMY_DEN = { 1: DEN.blue, '-1': DEN.red };
 const TRAP_OF = { 1: TRAP.red, '-1': TRAP.blue };
 // 站在"对方"陷阱里的子等级归零（engine.mjs: isTrap(tx, ty, OTHER(d.side))）
 const TRAP_ENEMY = { 1: TRAP.blue, '-1': TRAP.red };
+
+// 紧邻对方兽穴的格子：站上去，下一步就能进穴。
+// 兽穴本身永远不会有棋子（进穴即终局，搜索不会真的走进去），所以只看邻格。
+const DEN_ADJ = { 1: [], '-1': [] };
+for (let i = 0; i < N; i++) {
+  const x = CX(i);
+  const y = CY(i);
+  if (Math.abs(x - GEO.dens.blue.x) + Math.abs(y - GEO.dens.blue.y) === 1) DEN_ADJ[1].push(i);
+  if (Math.abs(x - GEO.dens.red.x) + Math.abs(y - GEO.dens.red.y) === 1) DEN_ADJ[-1].push(i);
+}
+
+// 进穴威胁：side 这一方有没有棋子正贴着对方兽穴（下一步可进穴）。
+function denThreat(board, side) {
+  if (board[ENEMY_DEN[side]] !== 0) return false;
+  const cells = DEN_ADJ[side];
+  for (let k = 0; k < cells.length; k++) {
+    const v = board[cells[k]];
+    if (v !== 0 && (v > 0) === (side > 0)) return true;
+  }
+  return false;
+}
 
 // 到对方兽穴的曼哈顿距离，用于评估函数里的进攻倾向。
 const DIST = { 1: new Int8Array(N), '-1': new Int8Array(N) };
@@ -1996,30 +2052,120 @@ function hasMove(board, side) {
   return genMoves(board, side).length > 0;
 }
 
-// ---------- 评估 ----------
-// 等级价值。鼠偏低但能杀象、能下水，豹/狼是中坚，狮虎能跳河所以略高。
-const VAL = { 1: 58, 2: 24, 3: 34, 4: 44, 5: 52, 6: 74, 7: 84, 8: 82 };
+// ---------- 评估：分数 = Σ(权重 × 特征) ----------
+const FEATURE_COUNT = FEATURE_NAMES.length;
+const FI = Object.fromEntries(FEATURE_NAMES.map((name, i) => [name, i]));
 
-function evaluate(board, side) {
-  let score = 0;
+// 固定子力价值只给“被吃风险”特征用：风险特征自身不该被拟合权重带着跑。
+const BASE_VAL = { 1: 58, 2: 24, 3: 34, 4: 44, 5: 52, 6: 74, 7: 84, 8: 82 };
+
+// 特征 1..8 是等级 1..8 的子力个数。
+const DEN_ADJ_FLAG = { 1: new Uint8Array(N), '-1': new Uint8Array(N) };
+for (const s of [1, -1]) {
+  for (const i of DEN_ADJ[s]) DEN_ADJ_FLAG[s][i] = 1;
+}
+
+let WEIGHTS = { ...DEFAULT_WEIGHTS };
+const WEIGHT_VEC = new Float64Array(FEATURE_COUNT);
+function rebuildWeights() {
+  for (let k = 0; k < FEATURE_COUNT; k++) WEIGHT_VEC[k] = Number(WEIGHTS[FEATURE_NAMES[k]]) || 0;
+}
+rebuildWeights();
+
+// 给调参脚本用：换一组权重，不用重新加载模块。
+function setEvalWeights(next) {
+  WEIGHTS = { ...WEIGHTS, ...next };
+  rebuildWeights();
+}
+
+function getEvalWeights() {
+  return { ...WEIGHTS };
+}
+
+const scratch = new Float64Array(FEATURE_COUNT);
+
+function extractFeatures(board, side) {
+  const out = new Float64Array(FEATURE_COUNT);
+  fillFeatures(out, board, side, null);
+  return out;
+}
+
+// 特征全部按“side 的视角”做差：自己的贡献 - 对手的贡献。
+// ownMoves 传入时省掉一次走法生成（qsearch 里本来就算过了）。
+function fillFeatures(out, board, side, ownMoves) {
+  out.fill(0);
+  const mine = ownMoves || genMoves(board, side);
+  const theirs = genMoves(board, -side);
+
+  let riskOwn = 0;
+  let riskOpp = 0;
+  let ratOwnHit = 0;
+  let ratOppHit = 0;
+  for (let k = 0; k < theirs.length; k++) {
+    const t = board[theirs[k] & 63];
+    if (t === 0) continue;
+    const rank = t > 0 ? t : -t;
+    riskOwn += BASE_VAL[rank];
+    if (rank === 1) ratOwnHit = 1;
+  }
+  for (let k = 0; k < mine.length; k++) {
+    const t = board[mine[k] & 63];
+    if (t === 0) continue;
+    const rank = t > 0 ? t : -t;
+    riskOpp += BASE_VAL[rank];
+    if (rank === 1) ratOppHit = 1;
+  }
+
+  let denPressure = 0;
+  let denThreat = 0;
+  let ratSafety = 0;
+
   for (let i = 0; i < N; i++) {
     const v = board[i];
     if (v === 0) continue;
     const s = v > 0 ? 1 : -1;
-    const rank = s > 0 ? v : -v;
+    const rank = v > 0 ? v : -v;
+    const dir = s === side ? 1 : -1;
 
-    let val = VAL[rank];
-    val += (12 - DIST[s][i]) * 1.7;          // 越靠近对方兽穴越值钱
-    if (TRAP_ENEMY[s][i]) val -= 22;         // 深入对方陷阱，谁都能吃它
-    if (rank === 1 && RIVER[i]) val += 3;    // 河里的鼠相对安全
-    score += s * val;
+    out[rank - 1] += dir;                                 // 子力
+    denPressure += dir * (13 - DIST[s][i]);               // 离对方兽穴越近，压力越大
+    if (DEN_ADJ_FLAG[s][i]) denThreat += dir;             // 贴着对方兽穴：下一步能进穴
+
+    if (rank === 1) {                                     // 鼠的安全度
+      let safety = 1 + (RIVER[i] ? 0.6 : 0);              // 活着；在河里更难被抓
+      if (s === side ? ratOwnHit : ratOppHit) safety -= 1.5; // 正被对方攻击
+      ratSafety += dir * safety;
+    }
   }
-  return score * side;
+
+  out[FI.mobility] = mine.length - theirs.length;
+  out[FI.risk] = riskOwn - riskOpp;
+  out[FI.denPressure] = denPressure;
+  out[FI.denThreat] = denThreat;
+  out[FI.ratSafety] = ratSafety;
+}
+
+function evaluate(board, side, ownMoves) {
+  fillFeatures(scratch, board, side, ownMoves);
+  let score = 0;
+  for (let k = 0; k < FEATURE_COUNT; k++) score += WEIGHT_VEC[k] * scratch[k];
+  return score;
+}
+
+// 用任意一组权重给特征向量打分（调参/校验用）。
+function evaluateFeatures(features, weights = WEIGHTS) {
+  let score = 0;
+  for (let k = 0; k < FEATURE_COUNT; k++) {
+    score += (Number(weights[FEATURE_NAMES[k]]) || 0) * features[k];
+  }
+  return score;
 }
 
 // ---------- 搜索 ----------
 const MATE = 1000000;
 const INF = 2000000;
+// 一条变化线上最多连续延展几次，防止进穴威胁互相顶牛时无限加深。
+const DEN_EXT = 4;
 const ABORT = { abort: true };
 const nowMs = () => Date.now();
 
@@ -2067,7 +2213,7 @@ function qsearch(ctx, board, side, alpha, beta, ply) {
     if ((all[k] & 63) === enemyDen) return MATE - ply;
   }
 
-  const stand = evaluate(board, side);
+  const stand = evaluate(board, side, all);
   if (stand >= beta) return beta;
   if (stand > alpha) alpha = stand;
   if (ply >= 24) return stand;
@@ -2097,7 +2243,7 @@ function qsearch(ctx, board, side, alpha, beta, ply) {
   return alpha;
 }
 
-function negamax(ctx, board, side, depth, alpha, beta, ply) {
+function negamax(ctx, board, side, depth, alpha, beta, ply, ext) {
   if (++ctx.nodes % 1024 === 0 && nowMs() > ctx.deadline) throw ABORT;
 
   const enemyDen = ENEMY_DEN[side];
@@ -2118,7 +2264,17 @@ function negamax(ctx, board, side, depth, alpha, beta, ply) {
     const captured = board[to];
     board[to] = board[from];
     board[from] = 0;
-    const score = -negamax(ctx, board, -side, depth - 1, -beta, -alpha, ply + 1);
+
+    // 进穴威胁延展：这一步走完以后，自己已经有子贴着对方兽穴，
+    // 下一手就能进穴。这种分支不扣正常层数，多算一层对手怎么应。
+    let childDepth = depth - 1;
+    let childExt = ext;
+    if (ext > 0 && denThreat(board, side)) {
+      childDepth = depth;
+      childExt = ext - 1;
+    }
+
+    const score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, ply + 1, childExt);
     board[from] = board[to];
     board[to] = captured;
 
@@ -2154,7 +2310,15 @@ function rootSearch(ctx, board, side, depth) {
     board[from] = 0;
     let score;
     if (to === enemyDen) score = MATE;
-    else score = -negamax(ctx, board, -side, depth - 1, -beta, -alpha, 1);
+    else {
+      let childDepth = depth - 1;
+      let childExt = DEN_EXT;
+      if (DEN_EXT > 0 && denThreat(board, side)) {
+        childDepth = depth;
+        childExt = DEN_EXT - 1;
+      }
+      score = -negamax(ctx, board, -side, childDepth, -beta, -alpha, 1, childExt);
+    }
     board[from] = board[to];
     board[to] = captured;
 
@@ -2236,7 +2400,9 @@ return {
   GEO, PIECE_NAME, SIDE_NAME, OTHER,
   pieceAt, movesOf, applyMove, initialState,
   isRiver, isTrap, isDen,
-  boardFromState, genMoves, evaluate, searchMove
+  boardFromState, genMoves, evaluate, searchMove,
+  FEATURE_NAMES, DEFAULT_WEIGHTS, FEATURE_COUNT,
+  extractFeatures, evaluateFeatures, getEvalWeights, setEvalWeights
 };
 })();
 </script>
@@ -2259,7 +2425,7 @@ const LEVELS = {
   easy:   { name: '轻松', timeMs: 150,  depth: 2,  random: 0.34 },
   normal: { name: '普通', timeMs: 350,  depth: 4,  random: 0.08 },
   hard:   { name: '困难', timeMs: 900,  depth: 8,  random: 0 },
-  master: { name: '大师', timeMs: 1600, depth: 12, random: 0 }
+  master: { name: '大师', timeMs: 3000, depth: 12, random: 0 }
 };
 
 const LEVEL_KEY = 'dsq.level';
@@ -2305,6 +2471,7 @@ let thinking = false;
 let aiInfo = null;
 let duo = false;
 let toastTimer = null;
+let searchToken = 0;
 
 const keyOf = (x, y) => x + ',' + y;
 
@@ -2364,6 +2531,7 @@ function doMove(from, to) {
 
 function newGame() {
   if (thinking) return;
+  searchToken++;
   game = initialState();
   game.lastMove = null;
   result = null;
@@ -2376,6 +2544,7 @@ function newGame() {
 
 function undo() {
   if (thinking) return;
+  searchToken++;
   if (!undoStack.length) {
     showToast('还没有可以撤销的一手');
     return;
@@ -2400,15 +2569,143 @@ function undo() {
   showToast('已悔棋');
 }
 
+// ---------- 搜索 Worker ----------
+// ai-local.html 是单文件：Worker 源码直接从本页 <script id="dsq-core"> 的文本
+// 取出来，拼一段消息胶水后用 Blob 造出来，不依赖任何外部 .js 文件。
+// 如果浏览器不允许 Blob Worker（例如某些 file:// 策略），自动回退主线程搜索。
+let searchWorker = null;
+let workerBroken = false;
+let workerSeq = 0;
+const workerPending = new Map();
+
+function workerSource() {
+  const core = document.getElementById('dsq-core');
+  if (!core) return '';
+  return [
+    'self.window = self;',
+    core.textContent,
+    'self.onmessage = function (event) {',
+    '  var data = event.data || {};',
+    '  try {',
+    '    var move = window.DSQ.searchMove(data.state, data.options || {});',
+    '    self.postMessage({ id: data.id, move: move });',
+    '  } catch (error) {',
+    '    self.postMessage({ id: data.id, error: String((error && error.message) || error) });',
+    '  }',
+    '};',
+    ''
+  ].join('\n');
+}
+
+function failWorker(error) {
+  workerBroken = true;
+  const w = searchWorker;
+  searchWorker = null;
+  if (w) {
+    try { w.terminate(); } catch {}
+    if (w.__url) {
+      try { URL.revokeObjectURL(w.__url); } catch {}
+      w.__url = null;
+    }
+  }
+  for (const pending of workerPending.values()) {
+    if (pending.timer) window.clearTimeout(pending.timer);
+    pending.reject(error);
+  }
+  workerPending.clear();
+}
+
+function ensureWorker() {
+  if (searchWorker) return searchWorker;
+  if (workerBroken) throw new Error('Worker 已停用');
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    throw new Error('浏览器不支持 Blob Worker');
+  }
+  const src = workerSource();
+  if (!src) throw new Error('页面里找不到内联的搜索引擎');
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  let w;
+  try {
+    w = new Worker(url);
+  } catch (error) {
+    try { URL.revokeObjectURL(url); } catch {}
+    throw error;
+  }
+  w.__url = url;
+  w.onmessage = (event) => {
+    const msg = event.data || {};
+    if (w.__url) {                         // 首次成功通信后就能安全释放
+      try { URL.revokeObjectURL(w.__url); } catch {}
+      w.__url = null;
+    }
+    const pending = workerPending.get(msg.id);
+    if (!pending) return;
+    workerPending.delete(msg.id);
+    if (pending.timer) window.clearTimeout(pending.timer);
+    if (msg.error) pending.reject(new Error(msg.error));
+    else pending.resolve(msg.move);
+  };
+  w.onerror = (event) => {
+    failWorker(new Error('Worker 出错：' + ((event && event.message) || '未知错误')));
+  };
+  w.onmessageerror = () => failWorker(new Error('Worker 消息无法解析'));
+  searchWorker = w;
+  return w;
+}
+
+function searchInWorker(state, options) {
+  return new Promise((resolve, reject) => {
+    let w;
+    try {
+      w = ensureWorker();
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const id = ++workerSeq;
+    const timeoutMs = Math.max(4000, (options.timeMs || 0) + 5000);
+    const timer = window.setTimeout(() => {
+      if (!workerPending.has(id)) return;
+      failWorker(new Error('Worker 搜索超时'));
+    }, timeoutMs);
+    workerPending.set(id, { resolve, reject, timer });
+    try {
+      w.postMessage({ id, state: clone(state), options });
+    } catch (error) {
+      workerPending.delete(id);
+      window.clearTimeout(timer);
+      reject(error);
+    }
+  });
+}
+
+async function chooseAIMove(cfg) {
+  const options = { timeMs: cfg.timeMs, maxDepth: cfg.depth, random: cfg.random };
+  if (!workerBroken) {
+    try {
+      const move = await searchInWorker(game, options);
+      if (move) move.via = 'worker';
+      return move;
+    } catch (error) {
+      workerBroken = true;   // 只回退一次，之后别再每回合都试着造 Worker
+      console.warn('Worker 搜索失败，回退主线程：', error);
+    }
+  }
+  const move = searchMove(game, options);
+  if (move) move.via = 'main';
+  return move;
+}
+
 // ---------- AI ----------
 async function maybeAutoPlay() {
   if (duo || thinking || result || game.turn !== AI) return;
 
   thinking = true;
+  const token = ++searchToken;
   render();
-  // 让"思考中"先画出来，再开始占用主线程
-  await new Promise((resolve) => window.setTimeout(resolve, 70));
-  if (result || game.turn !== AI) {
+  // 让“思考中”先画出来；搜索在 Worker 里跑，主线程不再被占住。
+  await new Promise((resolve) => window.setTimeout(resolve, 40));
+  if (token !== searchToken || result || game.turn !== AI) {
     thinking = false;
     render();
     return;
@@ -2417,12 +2714,16 @@ async function maybeAutoPlay() {
   const cfg = LEVELS[level];
   let move = null;
   try {
-    move = searchMove(game, { timeMs: cfg.timeMs, maxDepth: cfg.depth, random: cfg.random });
+    move = await chooseAIMove(cfg);
   } catch (error) {
     console.error('搜索失败', error);
     showToast('AI 算崩了，改用随机走法');
   }
 
+  if (token !== searchToken) {
+    thinking = false;
+    return;
+  }
   thinking = false;
 
   if (!move) {
@@ -2805,7 +3106,10 @@ window.doushouqi = {
   history: () => history.map((m) => ({ ...m })),
   result: () => result && { ...result },
   level: () => level,
-  duo: () => duo
+  duo: () => duo,
+  lastSearch: () => aiInfo && { ...aiInfo },
+  searchMode: () => (workerBroken ? 'main' : (searchWorker ? 'worker' : 'idle')),
+  thinking: () => thinking
 };
 
 game = initialState();
